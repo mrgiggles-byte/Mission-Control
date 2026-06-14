@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<title>METIS // MISSION CONTROL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js" defer></script>
+<style>
+/* ============================================================
+   PALETTE — LOCKED. Do not deviate.
+   ============================================================ */
+:root{
+  --bg:#0E1428;          /* deep midnight navy */
+  --surface:#1A1F33;     /* charcoal */
+  --surface-2:#222840;   /* raised charcoal */
+  --gold:#D4AF37;        /* imperial gold — primary accent */
+  --yellow:#F5C518;      /* warm yellow — secondary accent */
+  --fire:#E25822;        /* fire orange-red — action/energy */
+  --text:#F5F0E1;        /* cream white */
+  --muted:#A8B2C4;       /* cool silver */
+  --violet:#7B3FF2;      /* mystical / astrological */
+  --teal:#1FB8A0;        /* health / body */
+  --crimson:#C73E3A;     /* HEALTH WARNINGS ONLY */
+  --line:rgba(168,178,196,.14);
+  --glow-gold:0 0 0 1px rgba(212,175,55,.45), 0 0 14px rgba(212,175,55,.35);
+  --r:14px;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --sans:"Space Grotesk",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 700px at 78% -8%, rgba(123,63,242,.10), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(226,88,34,.08), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  letter-spacing:.1px;
+}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+::selection{background:rgba(212,175,55,.3)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
+
+.mono{font-family:var(--mono)}
+.gold{color:var(--gold)} .fire{color:var(--fire)} .teal{color:var(--teal)}
+.violet{color:var(--violet)} .muted{color:var(--muted)} .crim{color:var(--crimson)}
+.lucky{color:var(--gold);text-shadow:0 0 9px rgba(212,175,55,.7);font-weight:700}
+.master{color:var(--violet)}
+
+/* header / labels */
+.eyebrow,.panel-hd{
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:.22em;
+  font-size:11px;color:var(--muted);font-weight:500;
+}
+
+/* ============================================================
+   BOOT SEQUENCE (signature load moment)
+   ============================================================ */
+#boot{
+  position:fixed;inset:0;z-index:9999;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
+  transition:opacity .6s ease;
+}
+#boot.done{opacity:0;pointer-events:none}
+.boot-glyph{
+  width:74px;height:74px;border-radius:50%;
+  border:2px solid rgba(212,175,55,.25);
+  display:grid;place-items:center;position:relative;
+}
+.boot-glyph::before{
+  content:"";position:absolute;inset:-2px;border-radius:50%;
+  border:2px solid transparent;border-top-color:var(--gold);border-right-color:var(--gold);
+  animation:spin 1s linear infinite;
+}
+.boot-glyph span{font-family:var(--mono);font-weight:700;color:var(--gold);font-size:26px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.boot-title{font-family:var(--mono);letter-spacing:.34em;font-size:13px;color:var(--text)}
+.boot-sub{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.18em;min-height:14px}
+.boot-bar{width:min(360px,72vw);height:3px;background:rgba(168,178,196,.16);border-radius:3px;overflow:hidden}
+.boot-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--fire),var(--gold),var(--yellow));border-radius:3px}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+#app{display:none}
+.shell{display:grid;grid-template-columns:228px 1fr;min-height:100vh}
+
+/* sidebar (desktop) */
+.sidebar{
+  border-right:1px solid var(--line);background:rgba(10,16,32,.6);
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+  padding:18px 12px;gap:4px;backdrop-filter:blur(8px);
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px}
+.brand .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(140deg,var(--gold),var(--fire));
+  display:grid;place-items:center;font-family:var(--mono);font-weight:700;color:#1a1205;box-shadow:var(--glow-gold)}
+.brand b{font-family:var(--mono);letter-spacing:.18em;font-size:13px}
+.brand small{display:block;color:var(--muted);font-size:9px;letter-spacing:.28em;font-family:var(--mono)}
+.nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1;margin:0 -2px;padding:0 2px}
+.nav::-webkit-scrollbar{width:6px}.nav::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+.nav button{
+  display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;
+  font-size:13px;color:var(--muted);position:relative;text-align:left;width:100%;transition:.12s;
+}
+.nav button .ico{width:18px;text-align:center;font-size:14px}
+.nav button:hover{background:var(--surface);color:var(--text)}
+.nav button.active{background:linear-gradient(90deg,rgba(212,175,55,.16),rgba(212,175,55,.02));color:var(--text)}
+.nav button.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;background:var(--gold);border-radius:3px}
+.nav .badge{margin-left:auto;font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:20px;
+  background:var(--surface-2);color:var(--muted)}
+.nav .badge.alert{background:rgba(199,62,58,.18);color:#ff8a86}
+.nav .badge.go{background:rgba(212,175,55,.18);color:var(--gold)}
+.side-foot{border-top:1px solid var(--line);padding-top:10px;display:flex;gap:6px}
+.side-foot button{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:8px;border-radius:9px;
+  background:var(--surface);color:var(--muted)}
+.side-foot button:hover{color:var(--text)}
+.side-foot button.on{color:var(--gold);box-shadow:inset 0 0 0 1px rgba(212,175,55,.4)}
+
+/* main */
+.main{min-width:0;display:flex;flex-direction:column}
+
+/* status ribbon — always visible on desktop */
+.ribbon{
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:11px 22px;border-bottom:1px solid var(--line);
+  background:rgba(14,20,40,.86);backdrop-filter:blur(10px);
+}
+.ribbon .r-date{font-family:var(--mono);font-size:12px;letter-spacing:.06em}
+.ribbon .r-prio{display:flex;align-items:center;gap:8px;font-size:12.5px;min-width:0}
+.ribbon .r-prio .tag{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--muted)}
+.ribbon .r-prio b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.ribbon .spacer{flex:1}
+.chip{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;padding:5px 11px;border-radius:30px;
+  border:1px solid var(--line);display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.chip.block{color:var(--gold);border-color:rgba(212,175,55,.4);background:rgba(212,175,55,.07);animation:pulseSoft 2.6s infinite}
+.chip.retro{color:var(--fire);border-color:rgba(226,88,34,.4);background:rgba(226,88,34,.07)}
+.chip.kbd{color:var(--muted)}
+.r-refresh{font-family:var(--mono);font-size:10px;color:var(--muted)}
+@keyframes pulseSoft{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,.25)}50%{box-shadow:0 0 0 5px rgba(212,175,55,0)}}
+
+/* alert banners */
+.banners{padding:0 22px}
+.banner{display:flex;align-items:center;gap:12px;margin-top:12px;padding:11px 15px;border-radius:12px;font-size:13px}
+.banner .dot{width:9px;height:9px;border-radius:50%;flex:none;animation:pulseDot 1.4s infinite}
+.banner.health{background:rgba(199,62,58,.12);border:1px solid rgba(199,62,58,.4);color:#ffb3b0}
+.banner.health .dot{background:var(--crimson)}
+.banner.proto{background:rgba(226,88,34,.12);border:1px solid rgba(226,88,34,.4);color:#ffb892}
+.banner.proto .dot{background:var(--fire)}
+.banner.offline{background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.banner.offline .dot{background:var(--muted);animation:none}
+@keyframes pulseDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.5}}
+
+/* content */
+.content{padding:22px;max-width:1180px;width:100%}
+.view{display:none;animation:fade .3s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.view-hd{display:flex;align-items:baseline;gap:14px;margin-bottom:18px}
+.view-hd h1{font-family:var(--mono);font-size:17px;letter-spacing:.16em;text-transform:uppercase;margin:0;font-weight:700}
+.view-hd .num{font-family:var(--mono);color:var(--gold);font-size:13px}
+.view-hd .sub{color:var(--muted);font-size:12.5px;margin-left:auto}
+
+/* grids + cards */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.card{
+  background:linear-gradient(180deg,var(--surface),rgba(26,31,51,.7));
+  border:1px solid var(--line);border-radius:var(--r);padding:16px;position:relative;
+}
+.card.tealh{border-color:rgba(31,184,160,.28)}
+.card .c-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.card .c-hd .panel-hd{margin:0}
+.card.collapsible .c-hd{cursor:pointer}
+.card .collapse-ico{color:var(--muted);font-family:var(--mono);transition:.2s}
+.card.collapsed .c-body{display:none}
+.card.collapsed .collapse-ico{transform:rotate(-90deg)}
+
+.kv{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--muted)} .kv .v{font-family:var(--mono);font-weight:500}
+
+.stat{display:flex;flex-direction:column;gap:5px}
+.stat .lab{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.stat .big{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1}
+.stat .small{font-size:11px;color:var(--muted)}
+
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  padding:4px 9px;border-radius:30px;text-transform:uppercase}
+.pill.active{background:rgba(212,175,55,.14);color:var(--gold)}
+.pill.parked{background:rgba(168,178,196,.12);color:var(--muted)}
+.pill.complete{background:rgba(31,184,160,.14);color:var(--teal)}
+.pill.overdue{background:rgba(199,62,58,.16);color:#ff8a86}
+.pill.suspended{background:rgba(168,178,196,.1);color:var(--muted)}
+
+.btn{font-family:var(--mono);font-size:11px;letter-spacing:.12em;padding:9px 15px;border-radius:10px;
+  background:var(--surface-2);color:var(--text);text-transform:uppercase;transition:.12s;border:1px solid var(--line)}
+.btn:hover{border-color:rgba(212,175,55,.45)}
+.btn.go{background:linear-gradient(135deg,var(--gold),var(--yellow));color:#1a1205;border:none;font-weight:700}
+.btn.go:hover{box-shadow:var(--glow-gold)}
+.btn.fire{background:rgba(226,88,34,.14);color:var(--fire);border-color:rgba(226,88,34,.4)}
+
+/* countdowns */
+.cd-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.cd{background:rgba(14,20,40,.5);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.cd .n{font-family:var(--mono);font-size:32px;font-weight:700;line-height:1}
+.cd .u{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:6px}
+
+/* health metric grid */
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+.hm{background:rgba(14,20,40,.5);border:1px solid var(--line);border-radius:12px;padding:12px;position:relative}
+.hm.warn{border-color:rgba(199,62,58,.5);background:rgba(199,62,58,.08)}
+.hm.flag{border-color:rgba(226,88,34,.45);background:rgba(226,88,34,.06)}
+.hm .hm-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.hm .hm-val{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:6px;display:flex;align-items:baseline;gap:4px}
+.hm .hm-val small{font-size:11px;color:var(--muted);font-weight:400}
+.hm .hm-tgt{font-size:10px;color:var(--muted);margin-top:3px;font-family:var(--mono)}
+.spark{margin-top:8px;height:24px;width:100%;display:block}
+
+/* heatmap */
+.heat{display:grid;grid-template-columns:repeat(15,1fr);gap:3px;margin-top:8px}
+.heat i{aspect-ratio:1;border-radius:3px;background:rgba(168,178,196,.1)}
+.heat i.l1{background:rgba(212,175,55,.3)} .heat i.l2{background:rgba(212,175,55,.55)}
+.heat i.l3{background:var(--gold)} .heat i.miss{background:rgba(226,88,34,.35)}
+
+/* week strip */
+.wkstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.wk{background:rgba(14,20,40,.5);border:1px solid var(--line);border-radius:10px;padding:9px 6px;text-align:center}
+.wk.today{border-color:rgba(212,175,55,.5)}
+.wk .wd{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted)}
+.wk .wn{font-family:var(--mono);font-size:16px;font-weight:700;margin:3px 0}
+.wk .dots{display:flex;gap:4px;justify-content:center}
+.wk .dots i{width:6px;height:6px;border-radius:50%;background:rgba(168,178,196,.25)}
+.wk .dots i.on{background:var(--gold)} .wk .dots i.teal{background:var(--teal)}
+
+/* calendar grid */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
+.cal .cd0{aspect-ratio:1;border-radius:8px;display:grid;place-items:center;font-family:var(--mono);font-size:12px;
+  background:rgba(168,178,196,.07);color:var(--muted);position:relative}
+.cal .cd0.gold{background:rgba(212,175,55,.85);color:#1a1205;font-weight:700}
+.cal .cd0.silver{background:rgba(168,178,196,.22);color:var(--text)}
+.cal .cd0.orange{background:rgba(226,88,34,.55);color:#fff}
+.cal .cd0.future{opacity:.4}
+.cal .cd0.today{box-shadow:0 0 0 2px var(--gold)}
+.cal .cd0 .moon{position:absolute;top:2px;right:3px;font-size:8px}
+.cal-h{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px}
+.cal-h span{text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em}
+
+/* moon visual */
+.moon-big{display:flex;align-items:center;gap:18px}
+.moon-orb{font-size:54px;filter:drop-shadow(0 0 18px rgba(123,63,242,.5))}
+
+/* progress bar */
+.pbar{height:8px;border-radius:8px;background:rgba(168,178,196,.14);overflow:hidden;margin-top:8px}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--yellow));border-radius:8px}
+.pbar.violet i{background:linear-gradient(90deg,var(--violet),#a06bff)}
+.pbar.teal i{background:linear-gradient(90deg,var(--teal),#3fd6bd)}
+
+/* editorial stage bar */
+.stages{display:flex;gap:6px;margin-top:6px}
+.stages i{flex:1;height:6px;border-radius:6px;background:rgba(168,178,196,.14)}
+.stages i.on{background:var(--gold)}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted);
+  text-transform:uppercase;padding:8px 10px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px dashed var(--line)}
+.tbl tr:last-child td{border-bottom:none}
+
+/* protocol / project cards */
+.pcard{background:rgba(14,20,40,.5);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:9px}
+.pcard.crit{border-left:3px solid var(--fire)}
+.pcard .ph{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pcard h3{margin:0;font-size:14px;font-weight:600}
+.pcard .meta{font-size:12px;color:var(--muted);line-height:1.5}
+.pcard .clean{font-family:var(--mono);font-size:11px;color:var(--teal)}
+.pcard .recent{font-family:var(--mono);font-size:11px;color:var(--fire)}
+.tl{font-size:15px}
+.proj.parked{opacity:.55}
+
+/* config modal + command palette */
+.scrim{position:fixed;inset:0;z-index:200;background:rgba(6,9,18,.7);backdrop-filter:blur(4px);display:none;
+  align-items:flex-start;justify-content:center;padding-top:12vh}
+.scrim.show{display:flex}
+.modal{width:min(560px,92vw);background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.modal h2{font-family:var(--mono);font-size:13px;letter-spacing:.16em;text-transform:uppercase;margin:0 0 16px}
+.field{margin-bottom:13px}
+.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);margin-bottom:5px;text-transform:uppercase}
+.field input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--text);
+  font-family:var(--mono);font-size:12px}
+.field input:focus{border-color:var(--gold);outline:none}
+.modal .row{display:flex;gap:10px;margin-top:6px}
+.cmdk input{font-size:15px;font-family:var(--sans)}
+.cmd-res{margin-top:12px;max-height:46vh;overflow:auto}
+.cmd-res button{display:flex;width:100%;gap:10px;align-items:center;padding:11px;border-radius:9px;text-align:left}
+.cmd-res button:hover,.cmd-res button.sel{background:var(--surface-2)}
+.cmd-res .ico{font-size:14px}
+.cmd-res .t{font-size:13px} .cmd-res .s{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+
+/* flame (lottie fallback) */
+.flame{display:inline-block;width:16px;height:18px;position:relative;vertical-align:middle}
+.flame::before{content:"";position:absolute;left:3px;bottom:0;width:10px;height:13px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+  background:linear-gradient(to top,var(--fire),var(--yellow));animation:flick .9s ease-in-out infinite alternate;transform-origin:bottom}
+@keyframes flick{from{transform:scaleY(1) translateX(0)}to{transform:scaleY(1.18) translateX(1px)}}
+
+.check{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--teal);color:#04120f;
+  font-size:11px;font-weight:700;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+/* shimmer */
+.shimmer{background:linear-gradient(100deg,rgba(168,178,196,.06) 30%,rgba(168,178,196,.16) 50%,rgba(168,178,196,.06) 70%);
+  background-size:200% 100%;animation:shim 1.3s infinite;border-radius:8px}
+@keyframes shim{to{background-position:-200% 0}}
+
+/* bottom nav (mobile) */
+.botnav{display:none}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:880px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .content{padding:16px;padding-bottom:88px}
+  .ribbon{padding:10px 16px;gap:10px}
+  .ribbon .r-prio b{max-width:62vw}
+  .banners{padding:0 16px}
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .cd-row{grid-template-columns:repeat(3,1fr)}
+  .heat{grid-template-columns:repeat(15,1fr)}
+  .botnav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;overflow-x:auto;
+    background:rgba(10,16,32,.95);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    padding:7px 8px env(safe-area-inset-bottom);gap:2px;scrollbar-width:none;
+  }
+  .botnav::-webkit-scrollbar{display:none}
+  .botnav button{flex:0 0 auto;min-width:54px;min-height:52px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:3px;border-radius:11px;color:var(--muted);padding:4px 6px}
+  .botnav button .ico{font-size:17px}
+  .botnav button .lb{font-family:var(--mono);font-size:8px;letter-spacing:.06em}
+  .botnav button.active{color:var(--gold);background:rgba(212,175,55,.1)}
+  .botnav button .badge{position:absolute;top:2px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--fire)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+
+/* ============================================================
+   FROSTED GLASS — iOS VIBRANCY THEME (override layer)
+   Same selectors, appended last so they win cleanly.
+   Content + emojis unchanged — surface only.
+   ============================================================ */
+:root{
+  --r:22px; --r-sm:15px;
+  --glass:rgba(26,31,51,.52);
+  --glass-soft:rgba(245,240,225,.045);
+  --glass-border:1px solid rgba(245,240,225,.10);
+  --glass-blur:saturate(160%) blur(22px);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.12);
+  --shadow:0 14px 44px rgba(0,0,0,.34);
+}
+body{
+  background:
+    radial-gradient(900px 620px at 82% -6%, rgba(123,63,242,.20), transparent 56%),
+    radial-gradient(820px 560px at -10% 14%, rgba(212,175,55,.12), transparent 52%),
+    radial-gradient(900px 620px at 48% 116%, rgba(226,88,34,.14), transparent 56%),
+    radial-gradient(720px 520px at 112% 82%, rgba(31,184,160,.11), transparent 55%),
+    var(--bg);
+  background-attachment:fixed;
+}
+.card{
+  background:var(--glass);
+  border:var(--glass-border);
+  border-radius:var(--r);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+  box-shadow:var(--shadow),var(--glass-hi);
+}
+.sidebar{
+  background:rgba(14,20,40,.46);
+  border-right:var(--glass-border);
+  -webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);
+}
+.ribbon{
+  background:rgba(14,20,40,.5);
+  border-bottom:var(--glass-border);
+  -webkit-backdrop-filter:saturate(160%) blur(20px);
+  backdrop-filter:saturate(160%) blur(20px);
+}
+.brand .mark{border-radius:14px}
+.nav button{border-radius:14px}
+.side-foot button{border-radius:13px}
+/* inner tiles: soft inset glass, rounder iOS corners (no own blur — they sit on the card's glass) */
+.hm,.cd,.pcard,.wk{
+  background:var(--glass-soft);
+  border:1px solid rgba(245,240,225,.09);
+  border-radius:var(--r-sm);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.hm.warn{background:rgba(199,62,58,.12);border-color:rgba(199,62,58,.5)}
+.hm.flag{background:rgba(226,88,34,.10);border-color:rgba(226,88,34,.45)}
+.cd0{border-radius:13px}
+.heat i{border-radius:5px}
+.btn{border-radius:14px;border:var(--glass-border);background:rgba(245,240,225,.05)}
+.btn.go{background:linear-gradient(135deg,var(--gold),var(--yellow));border:none;box-shadow:0 6px 18px rgba(212,175,55,.25)}
+.btn.fire{background:rgba(226,88,34,.16);border-color:rgba(226,88,34,.4)}
+.chip{border-radius:30px}
+.pill{border-radius:30px}
+.banner{border-radius:16px;-webkit-backdrop-filter:saturate(150%) blur(12px);backdrop-filter:saturate(150%) blur(12px)}
+.cmd-res button{border-radius:14px}
+.field input{background:rgba(14,20,40,.55);border-radius:14px;border:var(--glass-border)}
+.scrim{background:rgba(6,9,18,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.modal{
+  background:rgba(26,31,51,.72);
+  border:var(--glass-border);
+  border-radius:26px;
+  -webkit-backdrop-filter:saturate(160%) blur(30px);
+  backdrop-filter:saturate(160%) blur(30px);
+  box-shadow:0 30px 90px rgba(0,0,0,.55),var(--glass-hi);
+}
+.botnav{
+  background:rgba(10,16,32,.6);
+  border-top:var(--glass-border);
+  -webkit-backdrop-filter:saturate(160%) blur(24px);
+  backdrop-filter:saturate(160%) blur(24px);
+}
+.botnav button{border-radius:16px}
+.boot-bar{border-radius:6px}
+</style>
+</head>
+<body>
+
+<!-- ============ BOOT ============ -->
+<div id="boot">
+  <div class="boot-glyph"><span>M</span></div>
+  <div class="boot-title">INITIALIZING MISSION CONTROL</div>
+  <div class="boot-bar"><i id="bootbar"></i></div>
+  <div class="boot-sub" id="bootsub">spinning up systems…</div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">M</div>
+      <div><b>METIS</b><small>MISSION CONTROL</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <button id="demoBtn" class="on">DEMO</button>
+      <button id="cfgBtn">CONFIG</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="ribbon">
+      <div class="r-date mono" id="ribDate">—</div>
+      <div class="r-prio"><span class="tag">PRIORITY</span><b id="ribPrio">—</b></div>
+      <div class="spacer"></div>
+      <span class="chip retro" id="ribRetro" style="display:none">☿ RETROGRADE</span>
+      <span class="chip block" id="ribBlock" style="display:none">⚡ STRATEGIC BLOCK</span>
+      <span class="chip kbd" id="cmdkChip">⌘K SEARCH</span>
+      <span class="r-refresh" id="ribRefresh">↻ 5:00</span>
+    </div>
+
+    <div class="banners" id="banners"></div>
+
+    <div class="content">
+      <div id="views"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="botnav" id="botnav"></nav>
+</div>
+
+<!-- CONFIG MODAL -->
+<div class="scrim" id="cfgScrim">
+  <div class="modal">
+    <h2>⚙ System Configuration</h2>
+    <div class="field"><label>Notion Integration Token</label>
+      <input id="cfgToken" type="password" placeholder="ntn_… (stored in this browser only)" /></div>
+    <div class="field"><label>Daily Logs DB ID</label>
+      <input id="cfgDaily" placeholder="32e1c1ef-7923-812b-8671-ea895c6266d9" /></div>
+    <div class="field"><label>Health Log DB ID</label><input id="cfgHealth" placeholder="—" /></div>
+    <div class="field"><label>Habit Log DB ID</label><input id="cfgHabit" placeholder="—" /></div>
+    <div class="field"><label>Projects DB ID</label><input id="cfgProj" placeholder="—" /></div>
+    <div class="field"><label>Protocols DB ID</label><input id="cfgProto" placeholder="—" /></div>
+    <div class="field"><label>Finance Log DB ID</label><input id="cfgFin" placeholder="—" /></div>
+    <div class="field"><label>War Room Persons DB ID</label>
+      <input id="cfgWar" placeholder="3231c1ef-7923-8144-8173-d83db466d2a3" /></div>
+    <div class="field"><label>Bermuda Deadline (YYYY-MM-DD)</label><input id="cfgDeadline" placeholder="2026-07-01" /></div>
+    <div class="row">
+      <button class="btn go" id="cfgSave">SAVE & GO LIVE</button>
+      <button class="btn" id="cfgClose">CANCEL</button>
+    </div>
+    <p class="muted" style="font-size:11px;margin:14px 0 0;line-height:1.6">
+      Token lives in <span class="mono">localStorage</span> only — never in source, never transmitted except to Notion via the Netlify proxy.
+      Leave empty to stay in <span class="gold">DEMO MODE</span>.
+    </p>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="scrim" id="cmdScrim">
+  <div class="modal cmdk">
+    <div class="field" style="margin:0"><input id="cmdInput" placeholder="Search panels, metrics, protocols…  ( Esc to close )" autocomplete="off" /></div>
+    <div class="cmd-res" id="cmdRes"></div>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   METIS MISSION CONTROL — single-file engine
+   Operator: Jordan Burton · Life Path 6 · Personal Year 8
+   ==================================================================== */
+
+const OP = {
+  name:"Jordan Burton",
+  dob:new Date(1997,5,19),        // June 19, 1997
+  lifePath:6,
+  lucky:[1,6,8,9],
+  tz:"America/New_York",
+};
+
+/* deadlines — Bermuda defaults to firm operating-record date (Jul 1 2026).
+   NOTE: build brief references September in a few places; flagged to Operator.
+   Editable in CONFIG. */
+const ANCHORS_DEFAULT = { bermuda:"2026-09-01" };  // September delivery window — confirmed by Operator
+
+/* Mercury retrograde windows 2026 (from brief). Venus/Mars direct in this window. */
+const RETRO_2026 = {
+  mercury:[["2026-01-25","2026-02-15"],["2026-05-29","2026-06-22"],["2026-09-22","2026-10-15"],["2026-12-31","2027-01-20"]],
+  venus:[["2026-10-03","2026-11-13"]],   // best-effort, editable
+  mars:[],                               // direct all of 2026
+};
+
+/* ---------- CONFIG (localStorage) ---------- */
+const CFG_KEY="metis_mc_v1";
+function loadCfg(){ try{return JSON.parse(localStorage.getItem(CFG_KEY))||{}}catch(e){return{}} }
+function saveCfg(c){ try{localStorage.setItem(CFG_KEY,JSON.stringify(c))}catch(e){} }
+let CFG = loadCfg();
+let DEMO = !CFG.token;            // demo unless a token is configured
+
+/* ====================================================================
+   REUSABLE ENGINES
+   ==================================================================== */
+function digitsSum(n){ return String(n).split("").reduce((a,d)=>a+(+d||0),0); }
+
+function reduceNum(n){
+  while(n>9 && n!==11 && n!==22 && n!==33){ n = digitsSum(n); }
+  return n;
+}
+// numerologyReduce(date) -> {sum, val, master}
+function numerologyReduce(date){
+  const raw = (date.getMonth()+1) + digitsSum(date.getDate()) + digitsSum(date.getFullYear());
+  const val = reduceNum(raw);
+  return { raw, val, master:[11,22,33].includes(val) };
+}
+function numLabel(date){
+  const n = numerologyReduce(date);
+  return n.master ? `⚡${n.val}` : `→ ${n.val}`;
+}
+
+function isLuckyNumber(n){ return OP.lucky.includes(Number(n)); }
+// wrap a number in lucky styling if it qualifies (whole-number match)
+function lucky(n,suffix=""){
+  const num = Number(String(n).replace(/[^0-9.-]/g,""));
+  const isL = Number.isFinite(num) && isLuckyNumber(num);
+  return `<span class="${isL?'lucky':''}">${n}${suffix}</span>`;
+}
+
+// Personal Year / Month / Day from DOB
+function personalYear(d=new Date()){
+  return reduceNum((OP.dob.getMonth()+1) + digitsSum(OP.dob.getDate()) + digitsSum(d.getFullYear()));
+}
+function personalMonth(d=new Date()){ return reduceNum(personalYear(d) + (d.getMonth()+1)); }
+function personalDay(d=new Date()){ return reduceNum(personalMonth(d) + digitsSum(d.getDate())); }
+
+// Moon phase (accurate enough for emoji + cadence)
+const SYN = 29.530588853;
+const REF_NEW = Date.UTC(2000,0,6,18,14,0)/86400000;
+function moonAge(date){
+  const d = date.getTime()/86400000;
+  return (((d - REF_NEW) % SYN) + SYN) % SYN;
+}
+const PHASES = [
+  {e:"🌑",n:"NEW MOON"},{e:"🌒",n:"WAXING CRESCENT"},{e:"🌓",n:"FIRST QUARTER"},
+  {e:"🌔",n:"WAXING GIBBOUS"},{e:"🌕",n:"FULL MOON"},{e:"🌖",n:"WANING GIBBOUS"},
+  {e:"🌗",n:"LAST QUARTER"},{e:"🌘",n:"WANING CRESCENT"}
+];
+function moonPhase(date=new Date()){
+  const age=moonAge(date), frac=age/SYN;
+  let idx=Math.round(frac*8)%8;
+  const toFull = ((SYN/2 - age)+SYN)%SYN;
+  const toNew  = (SYN - age)%SYN;
+  return { ...PHASES[idx], frac, age, toFull:Math.round(toFull), toNew:Math.round(toNew) };
+}
+// approx transiting moon sign (labeled ≈ — precise value is an Orion manual drop)
+const SIGNS=["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+function moonSignApprox(date=new Date()){
+  const ref=Date.UTC(2026,5,1)/86400000;          // anchor: Jun 1 2026 ≈ 0° offset
+  const d=date.getTime()/86400000;
+  const lon=((d-ref)*(360/27.321661)+150)%360;     // sidereal-ish sweep
+  return SIGNS[Math.floor(((lon%360)+360)%360/30)];
+}
+
+function inWindow(date,win){
+  const t=date.getTime();
+  return win.some(([a,b])=>t>=Date.parse(a) && t<=Date.parse(b+"T23:59:59"));
+}
+function planetStatus(planet,date=new Date()){
+  const retro = inWindow(date,RETRO_2026[planet]||[]);
+  return retro ? {retro:true,label:"RETROGRADE ⚠"} : {retro:false,label:"DIRECT ✓"};
+}
+function nextRetroEnd(date=new Date()){
+  for(const [a,b] of RETRO_2026.mercury){
+    if(date.getTime()>=Date.parse(a) && date.getTime()<=Date.parse(b+"T23:59:59")) return {active:true,until:new Date(b)};
+  }
+  for(const [a] of RETRO_2026.mercury){ if(Date.parse(a)>date.getTime()) return {active:false,next:new Date(a)}; }
+  return {active:false};
+}
+
+function daysUntil(target){
+  const ms = new Date(target).getTime() - Date.now();
+  return Math.ceil(ms/86400000);
+}
+function fmtDate(d){
+  const days=["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+  const mons=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  return {dow:days[d.getDay()], mon:mons[d.getMonth()], day:d.getDate(), yr:d.getFullYear()};
+}
+function nextBirthday(){
+  const now=new Date(); let y=now.getFullYear();
+  let bd=new Date(y,OP.dob.getMonth(),OP.dob.getDate());
+  if(bd<now) bd=new Date(y+1,OP.dob.getMonth(),OP.dob.getDate());
+  return bd;
+}
+function strategicBlockActive(){ const h=new Date().getHours(); return h>=15 && h<18; }
+
+/* ====================================================================
+   DEMO DATA — realistic fictional, no Notion needed
+   ==================================================================== */
+const DEMO_DATA = {
+  todayPriority:"Ship Chapter 9 rewrite — 2,000 clean words",
+  yesterday:{ priorityHit:true, streak:9, weedFree:true, logWritten:true,
+    body:"Deep work 3.5h. Bermuda Ch.8 polish done, opened Ch.9 scene map. Gym legs 5AM solid. Weed-free Day 67. Energy held through the afternoon block — strategic window is the engine." },
+  completionStreak:9,
+  health:{
+    logged:"2h ago",
+    metrics:[
+      {lab:"Sleep",val:6,unit:"h 40m",tgt:"8h",src:"manual",spark:[7.1,6.5,7.8,6.0,6.7,7.2,6.7],warn:false},
+      {lab:"Sleep Quality",val:7,unit:"/10",tgt:"≥7",spark:[6,7,8,5,6,7,7]},
+      {lab:"HRV",val:58,unit:"ms",tgt:"+10%",spark:[61,55,59,52,57,60,58]},
+      {lab:"Resting HR",val:54,unit:"bpm",tgt:"<60",spark:[55,57,54,56,53,54,54]},
+      {lab:"Energy AM",val:8,unit:"/10",tgt:"≥7",spark:[7,8,6,8,7,8,8]},
+      {lab:"Energy PM",val:6,unit:"/10",tgt:"≥6",spark:[5,6,6,4,6,7,6]},
+      {lab:"Bodyweight",val:189,unit:"lbs",tgt:"weekly",spark:[191,190,190,189,189,189,189]},
+      {lab:"Water",val:2.4,unit:"L",tgt:"3L",flag:true,spark:[3.1,2.8,2.2,3.0,2.6,2.9,2.4]},
+      {lab:"Caffeine",val:2,unit:"cups",tgt:"≤2",spark:[2,1,2,3,2,2,2]},
+      {lab:"Weed",val:0,unit:"sess",tgt:"0",spark:[0,0,0,0,0,0,0]},
+      {lab:"Alcohol",val:0,unit:"units",tgt:"≤2/wk",spark:[0,0,0,0,0,0,0]},
+      {lab:"Mood",val:8,unit:"/10",tgt:"≥7",spark:[7,8,6,7,8,8,8]},
+      {lab:"Steps",val:9100,unit:"",tgt:"10k",spark:[8200,11000,7400,9900,8800,12000,9100]},
+      {lab:"Sun",val:"YES",unit:"",tgt:"daily"},
+      {lab:"Gym Quality",val:8,unit:"/10",tgt:"≥7",spark:[7,8,7,9,8,7,8]},
+    ],
+    injuries:[{date:"2026-06-02",part:"Right forearm",desc:"Strain — rebar tying volume",sev:4,status:"healing"}],
+  },
+  astro:{
+    sun:"Mental restlessness is fuel, not noise. Channel the Gemini scatter into one channel today — the page, not the feed. Words compound; scrolling doesn't.",
+    moon:"Aquarius moon wants distance to think. Take it. Solitude in the strategic block is where the system-level moves get made.",
+    rising:"Scorpio rising reads the room before you speak. Use that today in any K-101 / client touch — listen for what's unsaid.",
+    weekly:"A build week. Mercury retrograde says revise, don't launch — perfect for editing Bermuda. Hold new outreach until the 22nd.",
+  },
+  hob:{
+    activeClients:1, ytd:1608, month:147,
+    pipeline:{client:"K-101 (Kween Klawz)",phase:"Template build — pre-deploy",next:"Resolve Zapier webhook URL",daysToMilestone:3},
+    projects:[
+      {title:"Bermuda Project",author:"J. Burton",status:"Active",tier:"—",next:"Ch.9 rewrite",stage:2},
+      {title:"K-101 Automation",author:"Androsia Link",status:"Parked",tier:"$147",next:"Webhook pin",stage:3},
+    ],
+    manifesto:"Build the empire one focused block at a time. The Ox doesn't sprint — it pulls the field.",
+    nextAction:"Pin the Zapier webhook URL → K-101 goes live → release 38-lead outreach.",
+  },
+  projects:[
+    {name:"Bermuda Project",icon:"📖",status:"Active",lastDays:1,next:"Chapter 9 rewrite (2k words)",owner:"Jordan",deadlineKey:"bermuda",light:"🟡",note:"Editing phase. Firm deadline."},
+    {name:"House of Burton",icon:"🏛",status:"Active",lastDays:2,next:"K-101 webhook resolution",owner:"Jordan",deadline:null,light:"🟢"},
+    {name:"METIS",icon:"🛰",status:"Active",lastDays:0,next:"Mission Control deploy",owner:"Orion",deadline:null,light:"🟢"},
+    {name:"Androsia Link",icon:"⚡",status:"Parked",lastDays:14,next:"Reactivate after Bermuda",owner:"Jordan",deadline:null,light:"🟡",parked:true},
+  ],
+  protocols:[
+    {name:"Weed Quit Protocol",crit:true,trigger:"Any weed session logged",rule:"Zero use until Bermuda Project complete",enforcer:"Orion + Jordan",status:"Active",sinceViolation:67,recovery:"Reset count, log trigger, re-sign commitment morning-after sober"},
+    {name:"Heartbeat / Daily Log",crit:true,trigger:"6PM ET, no log written",rule:"One log written every evening — no skips",enforcer:"Orion",status:"Active",sinceViolation:9,recovery:"Reconstruct from chat history + Notion, batch-write"},
+    {name:"WhatsApp Routing",crit:true,trigger:"Client message inbound",rule:"All client comms route through designated channel only",enforcer:"Automatic",status:"Active",sinceViolation:120,recovery:"Re-route, log breach"},
+    {name:"War Room Single Source",crit:true,trigger:"Person/situation referenced",rule:"Notion is the only source of truth — code names only",enforcer:"Orion",status:"Active",sinceViolation:200,recovery:"Reconcile to Notion"},
+    {name:"Channel Routing Hierarchy",crit:true,trigger:"New inbound across channels",rule:"Triage by tier before action",enforcer:"Jordan",status:"Active",sinceViolation:30,recovery:"Re-triage"},
+    {name:"Caffeine Cutoff",crit:false,trigger:"Coffee after 1PM",rule:"Hard cutoff 1PM ET",enforcer:"Jordan",status:"Active",sinceViolation:4,recovery:"Note, reset"},
+  ],
+  habits:[
+    {name:"Gym (MWF 5AM)",streak:18,best:42,grid:gridGen(18,0.85)},
+    {name:"Strategic Block",streak:12,best:31,grid:gridGen(12,0.78)},
+    {name:"Daily Log",streak:9,best:24,grid:gridGen(9,0.9)},
+    {name:"4AM Wake",streak:6,best:19,grid:gridGen(6,0.7)},
+    {name:"Personal Ritual",streak:3,best:15,grid:gridGen(3,0.6)},
+  ],
+  freezes:{week:1,month:2},
+  finance:{ weeklyNet:1340, cash:400, hobYtd:1608, hobMonth:147, hobWeek:0, burn:2980, savingsRate:22 },
+  nodes:{ t1:4, t2:3, t3:2, situations:5, nextAction:"K-101 — confirm webhook (due 3d)" },
+  arcs:{
+    yearTheme:"YEAR 8 — POWER, STRUCTURE, MANIFESTATION",
+    goals:[
+      {g:"Complete & deliver Bermuda Project",pct:62},
+      {g:"Androsia Link → 3 paying clients",pct:18},
+      {g:"Author platform: @theauthorjnb live + 1k",pct:8},
+    ],
+  },
+  anchors:[], // built dynamically
+  system:{
+    sync:[
+      {db:"Daily Logs",ok:true,ts:"2h ago"},{db:"Health Log",ok:true,ts:"2h ago"},
+      {db:"Habit Log",ok:true,ts:"3h ago"},{db:"Projects",ok:true,ts:"1d ago"},
+      {db:"Protocols",ok:true,ts:"1d ago"},{db:"War Room (RO)",ok:true,ts:"4h ago"},
+    ],
+    uptime:"14d 06:12",
+    sessions:["Morning debrief 06:02","K-101 webhook research 09:14","Ch.8 polish 15:30","Daily log write 21:40"],
+  },
+};
+function gridGen(streak,density){
+  const cells=45,out=[];
+  for(let i=0;i<cells;i++){
+    if(i>=cells-streak){ out.push(Math.random()<0.4?3:2); }
+    else out.push(Math.random()<density?(Math.random()<0.3?3:Math.random()<0.6?2:1):(Math.random()<0.12?-1:0));
+  }
+  return out;
+}
+
+/* ====================================================================
+   NOTION DATA LAYER (used when token configured)
+   ==================================================================== */
+async function notion(endpoint, body){
+  const res = await fetch("/.netlify/functions/notion",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({endpoint,token:CFG.token,body})
+  });
+  if(!res.ok) throw new Error("notion "+res.status);
+  return res.json();
+}
+// Live mode is wired but Phase 1 ships demo-first. When a token + DB ids exist,
+// these fetchers hydrate the same render layer. Falls back to demo on any failure.
+async function getData(){
+  if(DEMO) return DEMO_DATA;
+  try{
+    // minimal live pull: today's daily log priority. (Extend per DB as ids are added.)
+    const data = JSON.parse(JSON.stringify(DEMO_DATA)); // start from shape, overlay live
+    if(CFG.daily){
+      const r = await notion(`blocks/${CFG.daily}/children`, null);
+      // best-effort: leave demo overlay; real schema mapping added as DBs come online
+    }
+    setOffline(false);
+    return data;
+  }catch(e){ setOffline(true); return cachedOr(DEMO_DATA); }
+}
+function cachedOr(fb){ try{return JSON.parse(localStorage.getItem("metis_mc_cache"))||fb}catch(e){return fb} }
+function cache(d){ try{localStorage.setItem("metis_mc_cache",JSON.stringify(d))}catch(e){} }
+
+/* ====================================================================
+   PANEL REGISTRY
+   ==================================================================== */
+const PANELS = [
+  {id:"overview",ico:"🏠",lb:"OVERVIEW",num:"01",title:"COMMAND DECK"},
+  {id:"astro",ico:"⭐",lb:"ASTRO",num:"02",title:"HOROSCOPE LAYER"},
+  {id:"house",ico:"🏛",lb:"HOUSE",num:"03",title:"HOUSE OF BURTON"},
+  {id:"projects",ico:"📁",lb:"PROJECTS",num:"04",title:"PROJECTS"},
+  {id:"protocols",ico:"⚖",lb:"PROTOCOLS",num:"05",title:"PROTOCOLS REGISTRY"},
+  {id:"daily",ico:"📅",lb:"DAILY",num:"06",title:"DAILY LIFECYCLE"},
+  {id:"finance",ico:"💰",lb:"FINANCE",num:"07",title:"FINANCE OVERVIEW"},
+  {id:"habits",ico:"🔥",lb:"HABITS",num:"08",title:"HABIT TRACKER"},
+  {id:"health",ico:"❤️",lb:"HEALTH",num:"09",title:"HEALTH & BODY"},
+  {id:"arcs",ico:"🌀",lb:"ARCS",num:"10",title:"LIFE ARCS"},
+  {id:"nodes",ico:"🔗",lb:"NODES",num:"11",title:"NODES — WAR ROOM MIRROR"},
+  {id:"anchors",ico:"📌",lb:"ANCHORS",num:"12",title:"ANCHORS"},
+  {id:"system",ico:"⚙",lb:"SYSTEM",num:"13",title:"SYSTEM"},
+];
+let CURRENT="overview";
+let D = DEMO_DATA;
+
+/* ---------- collapse persistence ---------- */
+function collapseKey(id){return "mc_col_"+id}
+function isCollapsed(id){return localStorage.getItem(collapseKey(id))==="1"}
+function toggleCollapse(id,el){
+  const c=!isCollapsed(id); localStorage.setItem(collapseKey(id),c?"1":"0");
+  el.classList.toggle("collapsed",c);
+}
+function card(id,title,bodyHtml,opts={}){
+  const col=isCollapsed(id);
+  return `<div class="card collapsible ${opts.teal?'tealh':''} ${col?'collapsed':''}" data-col="${id}">
+    <div class="c-hd" onclick="toggleCollapse('${id}',this.parentElement)">
+      <span class="panel-hd">${title}</span>
+      ${opts.right||''}<span class="collapse-ico">▾</span>
+    </div>
+    <div class="c-body">${bodyHtml}</div>
+  </div>`;
+}
+
+/* ====================================================================
+   RENDERERS
+   ==================================================================== */
+function render(){
+  const v=document.getElementById("views");
+  v.innerHTML = PANELS.map(p=>`<section class="view ${p.id===CURRENT?'active':''}" id="view-${p.id}">
+     <div class="view-hd"><span class="num">${p.num}</span><h1>${p.title}</h1>
+       <span class="sub" id="sub-${p.id}"></span></div>
+     <div id="body-${p.id}"></div></section>`).join("");
+  PANELS.forEach(p=>renderPanel(p.id));
+  buildNav();
+}
+function renderPanel(id){
+  const el=document.getElementById("body-"+id); if(!el)return;
+  ({overview:rOverview,astro:rAstro,house:rHouse,projects:rProjects,protocols:rProtocols,
+    daily:rDaily,finance:rFinance,habits:rHabits,health:rHealth,arcs:rArcs,nodes:rNodes,
+    anchors:rAnchors,system:rSystem}[id]||(()=>{}))(el);
+}
+
+/* sparkline */
+function sparkline(arr,color){
+  if(!arr||!arr.length) return "";
+  const w=140,h=24,mn=Math.min(...arr),mx=Math.max(...arr),rng=(mx-mn)||1;
+  const pts=arr.map((y,i)=>`${(i/(arr.length-1))*w},${h-((y-mn)/rng)*(h-4)-2}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* ---- PANEL 01 COMMAND DECK ---- */
+function rOverview(el){
+  const now=new Date(), f=fmtDate(now), nm=numerologyReduce(now);
+  const mp=moonPhase(now), msign=moonSignApprox(now);
+  const mret=nextRetroEnd(now);
+  const mer=planetStatus("mercury"), ven=planetStatus("venus"), mar=planetStatus("mars");
+  const deadline=CFG.deadline||ANCHORS_DEFAULT.bermuda;
+  const bDays=daysUntil(deadline), bDay=daysUntil(nextBirthday()), pyDays=daysUntil("2027-01-01");
+  const py=personalYear(now),pm=personalMonth(now),pd=personalDay(now);
+  const y=D.yesterday;
+
+  el.innerHTML = `
+  <div class="grid g2">
+    ${card("ov-date","TODAY",`
+      <div style="font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.04em">
+        ${f.dow} · ${f.mon} ${lucky(f.day)} · ${f.yr}</div>
+      <div class="muted mono" style="font-size:12px;margin-top:6px">
+        (${nm.raw} ${nm.master?'⚡':'→'} ${nm.master?`<span class="master">${nm.val}</span>`:lucky(nm.val)})</div>
+      <div class="grid g3" style="margin-top:14px">
+        <div class="stat"><span class="lab">P. Year</span><span class="big">${lucky(py)}</span></div>
+        <div class="stat"><span class="lab">P. Month</span><span class="big">${lucky(pm)}</span></div>
+        <div class="stat"><span class="lab">P. Day</span><span class="big">${lucky(pd)}</span></div>
+      </div>`,{right:strategicBlockActive()?'<span class="chip block">⚡ BLOCK</span>':''})}
+
+    ${card("ov-cosmos","COSMOS",`
+      <div class="moon-big">
+        <div class="moon-orb">${mp.e}</div>
+        <div>
+          <div style="font-family:var(--mono);font-size:14px;font-weight:700">${mp.n}</div>
+          <div class="muted" style="font-size:12px;margin-top:3px">Moon ≈ ${msign} · full in ${lucky(mp.toFull)}d</div>
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:14px">
+        <div class="stat"><span class="lab">Mercury</span><span class="mono ${mer.retro?'fire':'teal'}" style="font-size:13px;font-weight:700">${mer.label}</span></div>
+        <div class="stat"><span class="lab">Venus</span><span class="mono ${ven.retro?'fire':'teal'}" style="font-size:13px;font-weight:700">${ven.label}</span></div>
+        <div class="stat"><span class="lab">Mars</span><span class="mono ${mar.retro?'fire':'teal'}" style="font-size:13px;font-weight:700">${mar.label}</span></div>
+      </div>`)}
+  </div>
+
+  <div style="margin-top:14px">${card("ov-prio","TODAY'S ONE PRIORITY",`
+      <div style="font-size:18px;font-weight:600;line-height:1.4">${D.todayPriority||'<span class="muted">— NO PRIORITY SET —</span>'}</div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Pulled from current daily log · ${DEMO?'<span class="gold">DEMO</span>':'live'}</div>`)}
+  </div>
+
+  <div style="margin-top:14px">${card("ov-cd","COUNTDOWNS",`
+    <div class="cd-row">
+      <div class="cd"><div class="n">${lucky(bDays)}</div><div class="u">Bermuda Deadline</div></div>
+      <div class="cd"><div class="n">${lucky(bDay)}</div><div class="u">Birthday · Jun 19</div></div>
+      <div class="cd"><div class="n">${lucky(pyDays)}</div><div class="u">Year 9 Rollover</div></div>
+    </div>`)}
+  </div>
+
+  <div style="margin-top:14px">${card("ov-yest","YESTERDAY",`
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <span class="pill ${y.priorityHit?'complete':'overdue'}">${y.priorityHit?'PRIORITY COMPLETED ✓':'MISSED ✗'}</span>
+      <span class="mono" style="font-size:13px">STREAK <span class="lucky">${y.streak}</span> <span class="flame"></span></span>
+      <span class="pill ${y.weedFree?'complete':'overdue'}">${y.weedFree?'WEED-FREE':'VIOLATION'}</span>
+    </div>
+    <div class="muted" style="font-size:13px;margin-top:12px;line-height:1.6">${y.body}</div>`)}
+  </div>`;
+  document.getElementById("sub-overview").textContent = DEMO?"DEMO MODE":"LIVE";
+}
+
+/* ---- PANEL 02 HOROSCOPE ---- */
+function rAstro(el){
+  const now=new Date();
+  const mret=nextRetroEnd(now);
+  const a=D.astro;
+  // lunar calendar
+  const y=now.getFullYear(),m=now.getMonth(),days=new Date(y,m+1,0).getDate(),first=new Date(y,m,1).getDay();
+  let calCells="";
+  for(let i=0;i<first;i++) calCells+=`<div class="cd0" style="visibility:hidden"></div>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m,d),mp=moonPhase(dt);
+    const isToday=d===now.getDate();
+    let lbl=""; if(mp.toNew<=0||mp.age<1) lbl="🌑"; if(mp.toFull<=0) lbl="🌕";
+    calCells+=`<div class="cd0 ${isToday?'today':''}" title="${mp.n}">${d}<span class="moon">${mp.e}</span></div>`;
+  }
+  // year 8 progress
+  const yStart=new Date(y,0,1), yProg=Math.round(((now-yStart)/(new Date(y+1,0,1)-yStart))*100);
+  const saturnLeft = Math.max(0, Math.round((Date.parse("2026-12-31")-Date.now())/(86400000*30)));
+
+  el.innerHTML = `
+  ${mret.active?`<div class="banner proto" style="margin-bottom:14px"><span class="dot"></span>
+     ☿ MERCURY RETROGRADE ACTIVE — revise, don't launch. Clears ${fmtDate(mret.until).mon} ${mret.until.getDate()}.</div>`:''}
+  <div class="grid g3">
+    ${card("as-sun","☉ SUN · GEMINI",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.sun}</p>`)}
+    ${card("as-moon","☾ MOON · AQUARIUS",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.moon}</p>`)}
+    ${card("as-rise","↑ RISING · SCORPIO",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.rising}</p>`)}
+  </div>
+  <div style="margin-top:14px">${card("as-week","WEEKLY READ",`<p style="font-size:14px;line-height:1.7;margin:0">${a.weekly}</p>`)}</div>
+  <div style="margin-top:14px">${card("as-cal","LUNAR CALENDAR · "+fmtDate(now).mon,`
+    <div class="cal-h"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div class="cal">${calCells}</div>
+    <div class="muted" style="font-size:11px;margin-top:10px">🌑 NEW — seed / initiate · 🌕 FULL — harvest / release</div>`)}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    ${card("as-yr","YEAR 8 PROGRESS",`
+      <div class="kv"><span class="k">${fmtDate(now).yr} elapsed</span><span class="v">${lucky(yProg,'%')}</span></div>
+      <div class="pbar violet"><i style="width:${yProg}%"></i></div>
+      <div class="muted" style="font-size:11px;margin-top:10px">Year 9 prep checklist unlocks September.</div>`,{right:''})}
+    ${card("as-sat","SATURN TRANSIT",`
+      <div class="kv"><span class="k">Saturn (Aries ingress)</span><span class="v">${lucky(saturnLeft)} mo left in yr</span></div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Saturn Return arc 2023–2026. Structure over comfort.</div>`)}
+  </div>`;
+  document.getElementById("sub-astro").textContent="Strategic intel · manual Orion drops";
+}
+
+/* ---- PANEL 03 HOUSE OF BURTON ---- */
+function rHouse(el){
+  const h=D.hob;
+  el.innerHTML=`
+  <div class="grid g3">
+    ${card("hb-c","ACTIVE CLIENTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">K-101 in pre-deploy</span></div>`)}
+    ${card("hb-ytd","YTD REVENUE",`<div class="stat"><span class="big">$${lucky(h.ytd.toLocaleString())}</span><span class="small">since Jan 1</span></div>`)}
+    ${card("hb-mo","THIS MONTH",`<div class="stat"><span class="big">$${lucky(h.month)}</span><span class="small">recurring maintenance</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("hb-pipe","PIPELINE",`
+    <div class="kv"><span class="k">Client</span><span class="v">${h.pipeline.client}</span></div>
+    <div class="kv"><span class="k">Phase</span><span class="v gold">${h.pipeline.phase}</span></div>
+    <div class="kv"><span class="k">Next deliverable</span><span class="v">${h.pipeline.next}</span></div>
+    <div class="kv"><span class="k">Days to milestone</span><span class="v">${lucky(h.pipeline.daysToMilestone)}</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("hb-proj","EDITORIAL PIPELINE",`
+    <table class="tbl"><thead><tr><th>Title</th><th>Status</th><th>Tier</th><th>v1→v5</th><th>Next</th></tr></thead><tbody>
+    ${h.projects.map(p=>`<tr><td>${p.title}</td><td><span class="pill ${p.status.toLowerCase()}">${p.status}</span></td>
+      <td class="mono">${p.tier}</td><td><div class="stages">${[1,2,3,4,5].map(s=>`<i class="${s<=p.stage?'on':''}"></i>`).join("")}</div></td>
+      <td class="muted">${p.next}</td></tr>`).join("")}
+    </tbody></table>`)}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    ${card("hb-man","MANIFESTO · DAILY",`<p style="font-size:14px;font-style:italic;line-height:1.7;margin:0">"${h.manifesto}"</p>`)}
+    ${card("hb-next","BUSINESS NEXT ACTION",`<p style="font-size:14px;line-height:1.7;margin:0">${h.nextAction}</p>
+      <div class="muted" style="font-size:11px;margin-top:10px">→ See Panel 04 for execution view</div>`)}
+  </div>`;
+  document.getElementById("sub-house").textContent="Business / revenue view";
+}
+
+/* ---- PANEL 04 PROJECTS ---- */
+function rProjects(el){
+  const cls={Active:"active",Parked:"parked",Complete:"complete",Overdue:"overdue"};
+  el.innerHTML=`<div class="grid g2">${D.projects.map(p=>{
+    const dl = p.deadlineKey ? (CFG.deadline||ANCHORS_DEFAULT[p.deadlineKey]) : p.deadline;
+    const days = dl?daysUntil(dl):null;
+    const stale = p.lastDays>7;
+    return `<div class="pcard proj ${p.parked?'parked':''}">
+      <div class="ph"><h3>${p.icon} ${p.name}</h3><span class="pill ${cls[p.status]}">${p.status}</span></div>
+      <div class="meta">
+        Last touched: <span class="${stale?'fire':'muted'}">${p.lastDays}d ago${stale?' ⚠':''}</span><br/>
+        Next: ${p.next}<br/>
+        Owner: ${p.owner}${days!==null?` · <span class="gold mono">${days}d left</span>`:''}
+        ${p.note?`<br/><span class="muted" style="font-size:11px">${p.note}</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span class="tl">${p.light}</span>
+        ${p.parked?'<button class="btn fire">⚡ REACTIVATE</button>':''}
+      </div>
+    </div>`}).join("")}</div>
+    <div class="muted" style="font-size:11px;margin-top:14px">
+      Bermuda deadline locked to <span class="gold mono">${CFG.deadline||ANCHORS_DEFAULT.bermuda}</span> · September delivery window. Editable in CONFIG.</div>`;
+  document.getElementById("sub-projects").textContent="Execution status board";
+}
+
+/* ---- PANEL 05 PROTOCOLS ---- */
+function rProtocols(el){
+  const sorted=[...D.protocols].sort((a,b)=>(b.crit-a.crit));
+  el.innerHTML=`<div class="grid g2">${sorted.map(p=>`
+    <div class="pcard ${p.crit?'crit':''}">
+      <div class="ph"><h3>${p.name}</h3><span class="pill ${p.status.toLowerCase()}">${p.status}</span></div>
+      <div class="meta"><b class="muted">Trigger:</b> ${p.trigger}<br/>
+        <b class="muted">Rule:</b> ${p.rule}<br/>
+        <b class="muted">Enforcer:</b> ${p.enforcer}<br/>
+        <b class="muted">Recovery:</b> ${p.recovery}</div>
+      <div class="${p.sinceViolation>=14?'clean':'recent'}">
+        ${p.sinceViolation>=14?'✓ ':'⚠ '}${lucky(p.sinceViolation)} days clean</div>
+    </div>`).join("")}</div>
+    <div style="margin-top:14px"><button class="btn">+ ADD PROTOCOL</button></div>`;
+  document.getElementById("sub-protocols").textContent="Enforcement layer";
+}
+
+/* ---- PANEL 06 DAILY LIFECYCLE ---- */
+function rDaily(el){
+  const now=new Date(),y=D.yesterday;
+  // week strip
+  const sow=new Date(now); sow.setDate(now.getDate()-now.getDay());
+  let wk="";
+  for(let i=0;i<7;i++){
+    const dt=new Date(sow); dt.setDate(sow.getDate()+i);
+    const isToday=dt.toDateString()===now.toDateString();
+    const past=dt<now;
+    wk+=`<div class="wk ${isToday?'today':''}">
+      <div class="wd">${["S","M","T","W","T","F","S"][i]}</div>
+      <div class="wn">${dt.getDate()}</div>
+      <div class="dots"><i class="${past&&Math.random()>.2?'on':''}"></i><i class="${past&&Math.random()>.15?'teal':''}"></i></div></div>`;
+  }
+  // month calendar color-coded
+  const yr=now.getFullYear(),mo=now.getMonth(),days=new Date(yr,mo+1,0).getDate(),first=new Date(yr,mo,1).getDay();
+  let cal="";
+  for(let i=0;i<first;i++) cal+=`<div class="cd0" style="visibility:hidden"></div>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(yr,mo,d),isToday=d===now.getDate(),future=dt>now;
+    let cls=future?"future":(()=>{const r=Math.random();return r>.6?"gold":r>.25?"silver":"orange"})();
+    cal+=`<div class="cd0 ${cls} ${isToday?'today':''}">${d}</div>`;
+  }
+  el.innerHTML=`
+  <div>${card("dl-today","TODAY'S LOG",`
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px">${D.todayPriority}</div>
+    <div class="muted" style="font-size:13px;line-height:1.6">
+      ${DEMO?'Demo log. ':''}Deep work block pending · weed-free streak <span class="lucky">${y.streak}</span> · log auto-writes at evening review.</div>
+    <div style="margin-top:12px"><button class="btn go">✎ QUICK-LOG</button></div>`)}</div>
+  <div style="margin-top:14px">${card("dl-yest","YESTERDAY",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${y.body}</p>`)}</div>
+  <div style="margin-top:14px">${card("dl-week","THIS WEEK",`<div class="wkstrip">${wk}</div>
+    <div class="muted" style="font-size:11px;margin-top:10px">● priority hit · <span class="teal">●</span> log written</div>`)}</div>
+  <div style="margin-top:14px">${card("dl-month","THIS MONTH",`
+    <div class="cal-h"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div class="cal">${cal}</div>
+    <div class="muted" style="font-size:11px;margin-top:10px">
+      <span class="gold">█</span> high-output · <span class="muted">█</span> normal · <span class="fire">█</span> partial</div>`)}</div>`;
+  document.getElementById("sub-daily").textContent="Life log · time-contextual";
+}
+
+/* ---- PANEL 07 FINANCE ---- */
+function rFinance(el){
+  const f=D.finance, takeHome=f.weeklyNet+f.cash, net=takeHome*4 - f.burn;
+  el.innerHTML=`
+  <div class="grid g3">
+    ${card("fn-wk","WEEKLY NET",`<div class="stat"><span class="big gold">$${lucky(f.weeklyNet.toLocaleString())}</span><span class="small">Z-210 employment</span></div>`)}
+    ${card("fn-cash","CASH ENVELOPE",`<div class="stat"><span class="big" style="color:var(--muted)">$${lucky(f.cash)}</span><span class="small">off-books · manual</span></div>`)}
+    ${card("fn-th","TOTAL TAKE-HOME",`<div class="stat"><span class="big gold">$${lucky(takeHome.toLocaleString())}</span><span class="small">books + cash / wk</span></div>`)}
+  </div>
+  <div class="grid g3" style="margin-top:14px">
+    ${card("fn-hob","HoB REVENUE",`
+      <div class="kv"><span class="k">YTD</span><span class="v gold">$${lucky(f.hobYtd.toLocaleString())}</span></div>
+      <div class="kv"><span class="k">Month</span><span class="v gold">$${lucky(f.hobMonth)}</span></div>
+      <div class="kv"><span class="k">Week</span><span class="v" style="color:var(--muted)">$${f.hobWeek}</span></div>`)}
+    ${card("fn-burn","MONTHLY BURN",`<div class="stat"><span class="big violet">$${f.burn.toLocaleString()}</span><span class="small">rent · car · phone · subs</span></div>`)}
+    ${card("fn-net","NET POSITION",`
+      <div class="stat"><span class="big ${net>=0?'gold':'violet'}">$${net.toLocaleString()}</span><span class="small">income − burn / mo</span></div>
+      <div class="kv" style="margin-top:8px"><span class="k">Savings rate</span><span class="v gold">${lucky(f.savingsRate,'%')}</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("fn-q3","Q3 FORECAST",`<p style="font-size:14px;line-height:1.7;margin:0">
+    <span class="violet">⬡ WATCH:</span> Bermuda delivery window = potential revenue event. Hold projections until manuscript ships.</p>`)}</div>
+  <div class="muted" style="font-size:11px;margin-top:14px">Display only — no formulas. Enter numbers via Finance Log DB.</div>`;
+  document.getElementById("sub-finance").textContent="Numbers only";
+}
+
+/* ---- PANEL 08 HABITS ---- */
+function rHabits(el){
+  const fr=D.freezes;
+  el.innerHTML=`
+  <div class="grid g2" style="margin-bottom:14px">
+    ${card("hb-frz","FREEZE INVENTORY",`
+      <div class="kv"><span class="k">This week</span><span class="v">${fr.week} / 1</span></div>
+      <div class="kv"><span class="k">This month</span><span class="v">${fr.month} / 2</span></div>`)}
+    ${card("hb-score","WEEK SCORECARD",`
+      <div class="heat" style="grid-template-columns:repeat(7,1fr)">
+        ${Array.from({length:35},(_,i)=>`<i class="${Math.random()>.3?(Math.random()>.5?'l3':'l2'):''}"></i>`).join("")}
+      </div><div class="muted" style="font-size:11px;margin-top:8px">5 habits × 7 days</div>`)}
+  </div>
+  <div class="grid g2">${D.habits.map((h,i)=>`
+    ${card("ha-"+i,h.name,`
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" style="font-size:26px;font-weight:700" class="gold">${lucky(h.streak)}</span>
+        ${h.streak>=7?'<span class="flame"></span>':''}
+        <span class="muted mono" style="font-size:11px;margin-left:auto">BEST ${lucky(h.best)}</span>
+      </div>
+      <div class="heat">${h.grid.map(v=>`<i class="${v===3?'l3':v===2?'l2':v===1?'l1':v===-1?'miss':''}"></i>`).join("")}</div>
+    `)}`).join("")}</div>`;
+  document.getElementById("sub-habits").textContent="Discipline · the streak is the signal";
+}
+
+/* ---- PANEL 09 HEALTH ---- */
+function rHealth(el){
+  const h=D.health;
+  const cards=h.metrics.map((m,i)=>{
+    const cls=m.warn?'warn':m.flag?'flag':'';
+    return `<div class="hm ${cls}">
+      <div class="hm-lab">${m.lab}</div>
+      <div class="hm-val">${m.lab==='Sleep'?lucky(m.val):lucky(m.val)}<small>${m.unit||''}</small></div>
+      <div class="hm-tgt">target ${m.tgt}</div>
+      ${m.spark?sparkline(m.spark, m.warn?'#C73E3A':'#1FB8A0'):''}
+    </div>`;
+  }).join("");
+  el.innerHTML=`
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <button class="btn go">+ LOG TODAY'S HEALTH</button>
+    <span class="muted mono" style="font-size:11px">LOGGED ${h.logged}</span>
+  </div>
+  <div class="card tealh"><div class="hgrid">${cards}</div></div>
+  <div style="margin-top:14px">${card("he-inj","INJURY / MEDICAL LOG",`
+    ${h.injuries.map(inj=>`<div style="border-left:3px solid var(--crimson);padding:10px 12px;background:rgba(199,62,58,.06);border-radius:8px">
+      <div style="font-weight:600">${inj.part} · <span class="crim">sev ${inj.sev}/10</span></div>
+      <div class="muted" style="font-size:12px;margin-top:3px">${inj.desc} · ${inj.date} · ${inj.status}</div></div>`).join("")}`,{teal:true})}
+  </div>
+  <div style="margin-top:14px">${card("he-proto","SUB-PROTOCOLS",`
+    <div class="kv"><span class="k">Sleep by 10 PM → 4 AM wake</span><span class="v teal">●</span></div>
+    <div class="kv"><span class="k">Caffeine cutoff 1 PM</span><span class="v teal">●</span></div>
+    <div class="kv"><span class="k">Water floor 3L/day</span><span class="v fire">⚠ 2.4L</span></div>
+    <div class="kv"><span class="k">Gym MWF non-negotiable</span><span class="v teal">●</span></div>
+    <div class="kv"><span class="k">Weed Quit Protocol</span><span class="v teal">● ACTIVE 67d</span></div>
+    <div class="muted" style="font-size:11px;margin-top:8px">→ full enforcement in Panel 05</div>`)}</div>`;
+  document.getElementById("sub-health").textContent="The body is operational equipment";
+}
+
+/* ---- PANEL 10 ARCS ---- */
+function rArcs(el){
+  const a=D.arcs;
+  el.innerHTML=`
+  <div>${card("ar-yr","YEAR 8 · 2026",`
+    <div style="font-family:var(--mono);font-size:14px;letter-spacing:.08em;margin-bottom:14px">${a.yearTheme}</div>
+    ${a.goals.map(g=>`<div style="margin-bottom:14px">
+      <div class="kv" style="border:none;padding:0 0 4px"><span class="k">${g.g}</span><span class="v gold">${lucky(g.pct,'%')}</span></div>
+      <div class="pbar"><i style="width:${g.pct}%"></i></div></div>`).join("")}`)}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    ${card("ar-y9","YEAR 9 PREVIEW · 2027",`<p style="font-size:13px;line-height:1.7;margin:0">
+      <span class="violet">Completion year.</span> Year 9 numerologically demands closure, release, harvest.
+      Prep checklist unlocks September — what gets finished, what gets shed.</p>`)}
+    ${card("ar-3y","3-YEAR ARC · 26→28",`
+      <div class="kv"><span class="k">2026 · Year 8</span><span class="v gold">Build / manifest</span></div>
+      <div class="kv"><span class="k">2027 · Year 9</span><span class="v violet">Complete / release</span></div>
+      <div class="kv"><span class="k">2028 · Year 1</span><span class="v teal">New cycle / seed</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("ar-mile","MILESTONES TRACKED",`
+    <div class="kv"><span class="k">📖 Publishing — Bermuda Project</span><span class="v gold">62%</span></div>
+    <div class="kv"><span class="k">⚡ Androsia Link → revenue</span><span class="v">18%</span></div>
+    <div class="kv"><span class="k">🏠 Property / marriage</span><span class="v muted">Operator defines</span></div>`)}</div>`;
+  document.getElementById("sub-arcs").textContent="The long view";
+}
+
+/* ---- PANEL 11 NODES (read-only war room mirror) ---- */
+function rNodes(el){
+  const n=D.nodes;
+  el.innerHTML=`
+  <div class="grid g4">
+    ${card("nd-t1","TIER 1",`<div class="stat"><span class="big">${lucky(n.t1)}</span><span class="small">inner circle</span></div>`)}
+    ${card("nd-t2","TIER 2",`<div class="stat"><span class="big">${lucky(n.t2)}</span><span class="small">active</span></div>`)}
+    ${card("nd-t3","TIER 3",`<div class="stat"><span class="big">${lucky(n.t3)}</span><span class="small">peripheral</span></div>`)}
+    ${card("nd-sit","SITUATIONS",`<div class="stat"><span class="big fire">${lucky(n.situations)}</span><span class="small">open</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("nd-next","NEXT ACTION DUE",`
+    <div style="font-size:15px;font-weight:600">${n.nextAction}</div>
+    <div style="margin-top:14px"><button class="btn" onclick="window.open('https://metis-warroom.netlify.app','_blank')">→ OPEN WAR ROOM</button></div>
+    <div class="muted" style="font-size:11px;margin-top:12px">🔒 Code names only · read-only mirror · no editing from Mission Control</div>`)}</div>`;
+  document.getElementById("sub-nodes").textContent="Read-only · code names only";
+}
+
+/* ---- PANEL 12 ANCHORS ---- */
+function rAnchors(el){
+  const now=new Date();
+  const deadline=CFG.deadline||ANCHORS_DEFAULT.bermuda;
+  const list=[
+    {lb:"Bermuda Deadline",d:new Date(deadline),ico:"📖"},
+    {lb:"Birthday",d:nextBirthday(),ico:"🎂"},
+    {lb:"Mercury Retrograde clears",d:new Date("2026-06-22"),ico:"☿"},
+    {lb:"Full Moon",d:(()=>{let dt=new Date(now);for(let i=0;i<40;i++){if(moonPhase(dt).toFull<=0)return new Date(dt);dt.setDate(dt.getDate()+1)}return dt})(),ico:"🌕"},
+    {lb:"Year 9 Rollover",d:new Date("2027-01-01"),ico:"🌀"},
+  ].map(a=>({...a,days:daysUntil(a.d)})).filter(a=>a.days>=0).sort((x,y)=>x.days-y.days);
+  el.innerHTML=`
+  <div>${card("an-next","NEXT ANCHOR",`
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:34px">${list[0].ico}</div>
+      <div><div style="font-size:18px;font-weight:700">${list[0].lb}</div>
+        <div class="muted mono" style="font-size:12px">in <span class="lucky">${list[0].days}</span> days</div></div></div>`)}</div>
+  <div style="margin-top:14px">${card("an-30","NEXT 30 DAYS",`
+    <table class="tbl"><thead><tr><th></th><th>Anchor</th><th>Date</th><th>Countdown</th></tr></thead><tbody>
+    ${list.map(a=>`<tr><td>${a.ico}</td><td>${a.lb}</td>
+      <td class="mono muted">${fmtDate(a.d).mon} ${a.d.getDate()}</td>
+      <td class="mono">${lucky(a.days)}d</td></tr>`).join("")}
+    </tbody></table>`)}</div>
+  <div class="muted" style="font-size:11px;margin-top:14px">Connect Google Calendar / Notion calendar to pull live events.</div>`;
+  document.getElementById("sub-anchors").textContent="Calendar intelligence";
+}
+
+/* ---- PANEL 13 SYSTEM ---- */
+function rSystem(el){
+  const s=D.system;
+  el.innerHTML=`
+  <div class="grid g2">
+    ${card("sy-sync","DATABASE SYNC",`
+      ${s.sync.map(x=>`<div class="kv"><span class="k"><span style="color:${x.ok?'var(--teal)':'var(--crimson)'}">●</span> ${x.db}</span>
+        <span class="v muted">${x.ts}</span></div>`).join("")}`)}
+    ${card("sy-stat","SYSTEM STATUS",`
+      <div class="kv"><span class="k">Mode</span><span class="v ${DEMO?'gold':'teal'}">${DEMO?'DEMO':'LIVE'}</span></div>
+      <div class="kv"><span class="k">Health sync</span><span class="v">⚠ manual-only</span></div>
+      <div class="kv"><span class="k">Uptime</span><span class="v">${s.uptime}</span></div>
+      <div class="kv"><span class="k">Quiet hours</span><span class="v muted">23:00–08:00</span></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("sy-sess","SESSION LOG · LAST ORION X",`
+    ${s.sessions.map(x=>`<div class="kv"><span class="k mono" style="font-size:12px">${x}</span></div>`).join("")}`)}</div>
+  <div style="margin-top:14px"><button class="btn go" onclick="openCfg()">⚙ OPEN CONFIG</button></div>`;
+  document.getElementById("sub-system").textContent="Instrument panel";
+}
+
+/* ====================================================================
+   NAV + ALERTS + RIBBON
+   ==================================================================== */
+function alertCount(){
+  let health=0,proto=0;
+  D.health.metrics.forEach(m=>{if(m.warn)health++});
+  D.health.injuries.forEach(()=>health++);
+  D.protocols.forEach(p=>{if(p.sinceViolation<14)proto++});
+  return {health,proto};
+}
+function buildNav(){
+  const ac=alertCount();
+  const badge=(id)=>{
+    if(id==="health"&&ac.health) return `<span class="badge alert">${ac.health}</span>`;
+    if(id==="protocols"&&ac.proto) return `<span class="badge">${ac.proto}</span>`;
+    if(id==="projects") return `<span class="badge go">${D.projects.filter(p=>p.status==='Active').length}</span>`;
+    return "";
+  };
+  document.getElementById("nav").innerHTML = PANELS.map(p=>
+    `<button class="${p.id===CURRENT?'active':''}" onclick="go('${p.id}')">
+       <span class="ico">${p.ico}</span><span>${p.lb}</span>${badge(p.id)}</button>`).join("");
+  document.getElementById("botnav").innerHTML = PANELS.map(p=>
+    `<button class="${p.id===CURRENT?'active':''}" onclick="go('${p.id}')" style="position:relative">
+       ${(p.id==='health'&&ac.health)||(p.id==='protocols'&&ac.proto)?'<span class="badge"></span>':''}
+       <span class="ico">${p.ico}</span><span class="lb">${p.lb}</span></button>`).join("");
+}
+function go(id){
+  CURRENT=id;
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+id));
+  buildNav();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function updateRibbon(){
+  const now=new Date(),f=fmtDate(now),nm=numerologyReduce(now);
+  document.getElementById("ribDate").innerHTML=`${f.dow.slice(0,3)} ${f.mon} ${f.day} · <span class="muted">${nm.master?'⚡'+nm.val:'→'+nm.val}</span>`;
+  document.getElementById("ribPrio").textContent=D.todayPriority||"— NO PRIORITY SET —";
+  document.getElementById("ribBlock").style.display=strategicBlockActive()?"":"none";
+  const mer=planetStatus("mercury");
+  document.getElementById("ribRetro").style.display=mer.retro?"":"none";
+}
+function renderBanners(){
+  const b=document.getElementById("banners"); let html="";
+  D.health.metrics.forEach(m=>{ if(m.warn) html+=`<div class="banner health"><span class="dot"></span>
+    HEALTH WARNING — ${m.lab}: ${m.val}${m.unit} (target ${m.tgt})</div>`; });
+  const weed=D.health.metrics.find(m=>m.lab==='Weed');
+  if(weed && weed.val>0) html+=`<div class="banner proto"><span class="dot"></span>
+    PROTOCOL VIOLATION — Weed Quit Protocol breached. Recovery sequence required.</div>`;
+  if(OFFLINE) html+=`<div class="banner offline"><span class="dot"></span>OFFLINE — SHOWING CACHED DATA</div>`;
+  b.innerHTML=html;
+}
+
+/* ====================================================================
+   COMMAND PALETTE (⌘K)
+   ==================================================================== */
+const CMD_INDEX = PANELS.map(p=>({type:"panel",id:p.id,t:p.title,s:p.num,ico:p.ico}));
+function openCmd(){ document.getElementById("cmdScrim").classList.add("show");
+  const i=document.getElementById("cmdInput"); i.value=""; cmdSearch(""); setTimeout(()=>i.focus(),30); }
+function closeCmd(){ document.getElementById("cmdScrim").classList.remove("show"); }
+function cmdSearch(q){
+  q=q.toLowerCase();
+  const extra=[
+    ...D.protocols.map(p=>({type:"proto",t:p.name,s:"PROTOCOL",ico:"⚖",go:"protocols"})),
+    ...D.projects.map(p=>({type:"proj",t:p.name,s:"PROJECT",ico:p.icon,go:"projects"})),
+    ...D.health.metrics.map(m=>({type:"metric",t:m.lab,s:"HEALTH",ico:"❤️",go:"health"})),
+  ];
+  const all=[...CMD_INDEX.map(c=>({...c,go:c.id})),...extra];
+  const res=all.filter(x=>x.t.toLowerCase().includes(q)||(x.s||'').toLowerCase().includes(q)).slice(0,12);
+  document.getElementById("cmdRes").innerHTML=res.map((r,i)=>
+    `<button class="${i===0?'sel':''}" onclick="go('${r.go}');closeCmd()">
+      <span class="ico">${r.ico}</span><span class="t">${r.t}</span><span class="s">${r.s}</span></button>`).join("")
+    || `<div class="muted" style="padding:12px;font-size:13px">No matches.</div>`;
+}
+
+/* ====================================================================
+   CONFIG MODAL
+   ==================================================================== */
+function openCfg(){
+  const c=CFG;
+  cfgToken.value=c.token||""; cfgDaily.value=c.daily||""; cfgHealth.value=c.health||"";
+  cfgHabit.value=c.habit||""; cfgProj.value=c.proj||""; cfgProto.value=c.proto||"";
+  cfgFin.value=c.fin||""; cfgWar.value=c.war||""; cfgDeadline.value=c.deadline||"";
+  document.getElementById("cfgScrim").classList.add("show");
+}
+function closeCfg(){ document.getElementById("cfgScrim").classList.remove("show"); }
+
+/* ====================================================================
+   OFFLINE + REFRESH + DAILY RESET
+   ==================================================================== */
+let OFFLINE=false;
+function setOffline(v){ OFFLINE=v; renderBanners(); }
+window.addEventListener("online",()=>setOffline(false));
+window.addEventListener("offline",()=>setOffline(true));
+
+let refreshSec=300;
+function tickRefresh(){
+  refreshSec--; if(refreshSec<0){ refreshSec=300; refresh(); }
+  const m=Math.floor(refreshSec/60),s=String(refreshSec%60).padStart(2,"0");
+  document.getElementById("ribRefresh").textContent=`↻ ${m}:${s}`;
+}
+async function refresh(){
+  D = await getData(); cache(D);
+  PANELS.forEach(p=>renderPanel(p.id));
+  updateRibbon(); renderBanners(); buildNav();
+}
+
+/* daily reset rolls at 4AM ET — check on load + hourly */
+function checkDailyReset(){
+  const last=localStorage.getItem("mc_last_day");
+  const key=new Date().toDateString();
+  if(last!==key){ localStorage.setItem("mc_last_day",key); /* fresh-day hook */ }
+}
+
+/* ====================================================================
+   BOOT
+   ==================================================================== */
+function boot(){
+  const steps=["loading numerology core…","computing lunar ephemeris…","syncing notion databases…",
+    "arming protocol enforcement…","calibrating health thresholds…","mission control online."];
+  const bar=document.getElementById("bootbar"),sub=document.getElementById("bootsub");
+  let i=0;
+  const iv=setInterval(()=>{
+    const pct=Math.min(100,((i+1)/steps.length)*100);
+    bar.style.width=pct+"%"; sub.textContent=steps[i]||"online."; i++;
+    if(i>steps.length){ clearInterval(iv); finishBoot(); }
+  },360);
+}
+async function finishBoot(){
+  D = await getData(); cache(D);
+  render(); updateRibbon(); renderBanners(); buildNav();
+  document.getElementById("boot").classList.add("done");
+  setTimeout(()=>{document.getElementById("boot").style.display="none";
+    document.getElementById("app").style.display="block";},580);
+  // reduced-motion: skip the long boot
+}
+
+/* wiring */
+window.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("app").style.display="none";
+  // events
+  document.getElementById("cfgBtn").onclick=openCfg;
+  document.getElementById("cfgClose").onclick=closeCfg;
+  document.getElementById("cfgScrim").onclick=e=>{if(e.target.id==="cfgScrim")closeCfg()};
+  document.getElementById("cfgSave").onclick=()=>{
+    CFG={token:cfgToken.value.trim(),daily:cfgDaily.value.trim(),health:cfgHealth.value.trim(),
+      habit:cfgHabit.value.trim(),proj:cfgProj.value.trim(),proto:cfgProto.value.trim(),
+      fin:cfgFin.value.trim(),war:cfgWar.value.trim(),deadline:cfgDeadline.value.trim()};
+    saveCfg(CFG); DEMO=!CFG.token;
+    document.getElementById("demoBtn").classList.toggle("on",DEMO);
+    closeCfg(); refresh();
+  };
+  document.getElementById("demoBtn").onclick=()=>{
+    DEMO=!DEMO; document.getElementById("demoBtn").classList.toggle("on",DEMO); refresh();
+  };
+  document.getElementById("cmdkChip").onclick=openCmd;
+  document.getElementById("cmdScrim").onclick=e=>{if(e.target.id==="cmdScrim")closeCmd()};
+  document.getElementById("cmdInput").addEventListener("input",e=>cmdSearch(e.target.value));
+  document.getElementById("cmdInput").addEventListener("keydown",e=>{
+    if(e.key==="Enter"){const b=document.querySelector("#cmdRes button");if(b)b.click();}
+  });
+  document.addEventListener("keydown",e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openCmd();}
+    if(e.key==="Escape"){closeCmd();closeCfg();}
+  });
+  checkDailyReset();
+  setInterval(tickRefresh,1000);
+  setInterval(updateRibbon,30000);
+  setInterval(checkDailyReset,3600000);
+
+  const reduce=window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  if(reduce){ document.getElementById("bootbar").style.width="100%"; finishBoot(); }
+  else boot();
+});
+</script>
+</body>
+</html>
