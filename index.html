@@ -758,12 +758,25 @@ function gridGen(streak,density){
    NOTION DATA LAYER — real hydration (LIVE mode)
    ==================================================================== */
 // Default DB ids (dashed). CONFIG overrides; defaults make LIVE work out of the box.
+// Some IDs come in two flavors: database_id (what the query endpoint needs) and
+// collection/data_source id (what shows in some places). Map collection->database
+// so the dashboard works regardless of which one is pasted into CONFIG.
+const COLLECTION_TO_DB = {
+  "c9899ebf72d14c4599f1860c56c1e6fa":"e380cd6a-c90e-49de-a439-26b05d428880", // Protocols
+  "fa75db45a6ad47df9fa82844169e9f44":"48c73d72-3016-46f5-8ee1-6535c218d907", // Health Log
+  "b6756e6b23cc48baa9a8456fcc78ab73":"480495a9-e94e-4c9f-99a0-d2bc8daeba91", // Finance Log
+  "e1cd7b291fc2440fad692873d23420f5":"069a2193-deb3-4a07-8e88-9e38c3986cfd", // Habit Log
+  "ea15f4e34a8a42159f75766ba088e631":"fff94869-3e44-48d8-b1d9-60e87ecba7be", // Projects
+  "5d1fab9495f645b691c55712c09bd427":"ec05c58d-2cf1-42e1-b45b-abc511191a53", // Summit Habit Tracker
+  "32b1c1ef792381e5a794000b3f17d478":"32b1c1ef-7923-81dd-874a-d45729104a69", // Bermuda Tracker
+};
+function normId(id){ if(!id) return id; const k=id.replace(/-/g,"").toLowerCase(); return COLLECTION_TO_DB[k]||id; }
 const DB = {
-  health:      (CFG.health  || "48c73d72-3016-46f5-8ee1-6535c218d907"),
-  finance:     (CFG.fin     || "480495a9-e94e-4c9f-99a0-d2bc8daeba91"),
-  protocols:   (CFG.proto   || "e380cd6a-c90e-49de-a439-26b05d428880"),
-  bermuda:     (CFG.bermuda_db   || "32b1c1ef-7923-81dd-874a-d45729104a69"),
-  summitHabit: (CFG.summit_habit || "5d1fab94-95f6-45b6-91c5-5712c09bd427"),
+  health:      normId(CFG.health)  || "48c73d72-3016-46f5-8ee1-6535c218d907",
+  finance:     normId(CFG.fin)     || "480495a9-e94e-4c9f-99a0-d2bc8daeba91",
+  protocols:   normId(CFG.proto)   || "e380cd6a-c90e-49de-a439-26b05d428880",
+  bermuda:     normId(CFG.bermuda_db)   || "32b1c1ef-7923-81dd-874a-d45729104a69",
+  summitHabit: normId(CFG.summit_habit) || "ec05c58d-2cf1-42e1-b45b-abc511191a53",
 };
 async function nfetch(endpoint, body){
   const res = await fetch("/.netlify/functions/notion",{
