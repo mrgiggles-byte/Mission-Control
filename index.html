@@ -688,25 +688,23 @@ const DEMO_DATA = {
   astro:{
     sun:"Mental restlessness is fuel, not noise. Channel the Gemini scatter into one channel today — the page, not the feed. Words compound; scrolling doesn't.",
     moon:"Aquarius moon wants distance to think. Take it. Solitude in the strategic block is where the system-level moves get made.",
-    rising:"Scorpio rising reads the room before you speak. Use that today in any K-101 / client touch — listen for what's unsaid.",
-    weekly:"A build week. Mercury retrograde says revise, don't launch — perfect for editing Bermuda. Hold new outreach until the 22nd.",
+    rising:"Scorpio rising reads the room before you speak. Use that today in any client or partner touch — listen for what's unsaid.",
+    weekly:"A build week. Mercury retrograde says revise, don't launch — perfect for editing Bermuda. Polish the manuscript; hold the big public moves.",
   },
   hob:{
     activeClients:1, ytd:1608, month:147,
-    pipeline:{client:"K-101 (Kween Klawz)",phase:"Template build — pre-deploy",next:"Resolve Zapier webhook URL",daysToMilestone:3},
+    pipeline:{client:"Rose Miliane",phase:"Manuscript — editing",next:"v3 line-edit pass",daysToMilestone:6},
     projects:[
-      {title:"Bermuda Project",author:"J. Burton",status:"Active",tier:"—",next:"Ch.9 rewrite",stage:2},
-      {title:"K-101 Automation",author:"Androsia Link",status:"Parked",tier:"$147",next:"Webhook pin",stage:3},
+      {title:"Rose Miliane — Manuscript",author:"HoB / Rose",status:"Active",tier:"Publisher-of-record",next:"v3 line edit",stage:3},
     ],
-    manifesto:"Build the empire one focused block at a time. The Ox doesn't sprint — it pulls the field.",
-    nextAction:"Pin the Zapier webhook URL → K-101 goes live → release 38-lead outreach.",
+    manifesto:"Every story is a world of its own. The House of Burton is where those worlds live.",
+    nextAction:"One operational task this week minimum — advance the active manuscript toward delivery.",
   },
-  projects:[
-    {name:"Bermuda Project",icon:"📖",status:"Active",lastDays:1,next:"Chapter 9 rewrite (2k words)",owner:"Jordan",deadlineKey:"bermuda",light:"🟡",note:"Editing phase. Firm deadline."},
-    {name:"House of Burton",icon:"🏛",status:"Active",lastDays:2,next:"K-101 webhook resolution",owner:"Jordan",deadline:null,light:"🟢"},
-    {name:"METIS",icon:"🛰",status:"Active",lastDays:0,next:"Mission Control deploy",owner:"Orion",deadline:null,light:"🟢"},
-    {name:"Androsia Link",icon:"⚡",status:"Parked",lastDays:14,next:"Reactivate after Bermuda",owner:"Jordan",deadline:null,light:"🟡",parked:true},
-  ],
+  bermuda:{
+    target:80000, current:48600, phase:"Editing — Chapter 9 rewrites",
+    next:"Chapter 9 rewrite — 2,000 clean words", chaptersDone:8, chaptersTotal:14,
+    recent:[{date:"Jun 6",words:1200},{date:"Jun 8",words:900},{date:"Jun 10",words:1500},{date:"Jun 11",words:1100},{date:"Jun 13",words:1300}],
+  },
   protocols:[
     {name:"Weed Quit Protocol",crit:true,trigger:"Any weed session logged",rule:"Zero use until Bermuda Project complete",enforcer:"Orion + Jordan",status:"Active",sinceViolation:67,recovery:"Reset count, log trigger, re-sign commitment morning-after sober"},
     {name:"Heartbeat / Daily Log",crit:true,trigger:"6PM ET, no log written",rule:"One log written every evening — no skips",enforcer:"Orion",status:"Active",sinceViolation:9,recovery:"Reconstruct from chat history + Notion, batch-write"},
@@ -724,12 +722,12 @@ const DEMO_DATA = {
   ],
   freezes:{week:1,month:2},
   finance:{ weeklyNet:1340, cash:400, hobYtd:1608, hobMonth:147, hobWeek:0, burn:2980, savingsRate:22 },
-  nodes:{ t1:4, t2:3, t3:2, situations:5, nextAction:"K-101 — confirm webhook (due 3d)" },
+  nodes:{ t1:4, t2:3, t3:2, situations:5, nextAction:"M-101 — ring milestone this month" },
   arcs:{
     yearTheme:"YEAR 8 — POWER, STRUCTURE, MANIFESTATION",
     goals:[
-      {g:"Complete & deliver Bermuda Project",pct:62},
-      {g:"Androsia Link → 3 paying clients",pct:18},
+      {g:"Complete & deliver Bermuda Project",pct:61},
+      {g:"House of Burton — active client to delivery",pct:40},
       {g:"Author platform: @theauthorjnb live + 1k",pct:8},
     ],
   },
@@ -741,7 +739,7 @@ const DEMO_DATA = {
       {db:"Protocols",ok:true,ts:"1d ago"},{db:"War Room (RO)",ok:true,ts:"4h ago"},
     ],
     uptime:"14d 06:12",
-    sessions:["Morning debrief 06:02","K-101 webhook research 09:14","Ch.8 polish 15:30","Daily log write 21:40"],
+    sessions:["Morning debrief 06:02","Bermuda Ch.9 scene map 09:14","Ch.8 polish 15:30","Daily log write 21:40"],
   },
 };
 function gridGen(streak,density){
@@ -756,28 +754,137 @@ function gridGen(streak,density){
 /* ====================================================================
    NOTION DATA LAYER (used when token configured)
    ==================================================================== */
-async function notion(endpoint, body){
+/* ====================================================================
+   NOTION DATA LAYER — real hydration (LIVE mode)
+   ==================================================================== */
+// Default DB ids (dashed). CONFIG overrides; defaults make LIVE work out of the box.
+const DB = {
+  health:      (CFG.health  || "48c73d72-3016-46f5-8ee1-6535c218d907"),
+  finance:     (CFG.fin     || "480495a9-e94e-4c9f-99a0-d2bc8daeba91"),
+  protocols:   (CFG.proto   || "e380cd6a-c90e-49de-a439-26b05d428880"),
+  bermuda:     (CFG.bermuda_db   || "32b1c1ef-7923-81dd-874a-d45729104a69"),
+  summitHabit: (CFG.summit_habit || "5d1fab94-95f6-45b6-91c5-5712c09bd427"),
+};
+async function nfetch(endpoint, body){
   const res = await fetch("/.netlify/functions/notion",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({endpoint,token:CFG.token,body})
   });
-  if(!res.ok) throw new Error("notion "+res.status);
-  return res.json();
+  const json = await res.json().catch(()=>({}));
+  if(!res.ok || json.object==="error") throw new Error(json.message||("HTTP "+res.status));
+  return json;
 }
-// Live mode is wired but Phase 1 ships demo-first. When a token + DB ids exist,
-// these fetchers hydrate the same render layer. Falls back to demo on any failure.
+function queryDB(id, body){ return nfetch(`databases/${id}/query`, body||{page_size:100}); }
+// property extractors operate on a page.properties object
+const P = {
+  title:(p,k)=>p[k]?.title?.[0]?.plain_text||"",
+  text:(p,k)=>p[k]?.rich_text?.[0]?.plain_text||"",
+  num:(p,k)=>p[k]?.number,
+  sel:(p,k)=>p[k]?.select?.name||"",
+  date:(p,k)=>p[k]?.date?.start||"",
+  check:(p,k)=>!!p[k]?.checkbox,
+};
+function daysSince(d){ if(!d) return null; return Math.floor((Date.now()-Date.parse(d))/86400000); }
+
+let LIVE_ERRORS=[], LIVE_PANELS=[];
+async function hydrate(base){
+  LIVE_ERRORS=[]; LIVE_PANELS=[];
+  const tasks=[];
+
+  // ---- PROTOCOLS (05)
+  tasks.push((async()=>{
+    const r=await queryDB(DB.protocols);
+    if(!r.results?.length) return;
+    base.protocols = r.results.map(pg=>{const p=pg.properties; const lv=P.date(p,"Last Violation");
+      const since = lv!=null&&lv!==""?daysSince(lv):365;
+      return {name:P.title(p,"Name")||"—",crit:P.check(p,"Critical"),trigger:P.text(p,"Trigger"),
+        rule:P.text(p,"Rule"),enforcer:P.sel(p,"Enforcer"),status:P.sel(p,"Status")||"Active",
+        sinceViolation:(since==null?365:since),recovery:P.text(p,"Recovery")};
+    }).filter(x=>x.status!=="Archived");
+    LIVE_PANELS.push("protocols");
+  })().catch(e=>LIVE_ERRORS.push("Protocols: "+e.message)));
+
+  // ---- BERMUDA (04) — word-count tracker
+  tasks.push((async()=>{
+    const r=await queryDB(DB.bermuda,{page_size:100});
+    if(!r.results?.length) return;
+    const rows=r.results.map(pg=>{const p=pg.properties;
+      return {date:P.title(p,"Date"),words:P.num(p,"Words Written")||0,cum:P.num(p,"Cumulative Total")||0};});
+    const cum=Math.max(0,...rows.map(x=>x.cum||0));
+    const recent=rows.filter(x=>x.words>0).slice(0,6).reverse().map(x=>({date:x.date,words:x.words}));
+    base.bermuda={...base.bermuda, current:cum||base.bermuda.current, recent:recent.length?recent:base.bermuda.recent};
+    LIVE_PANELS.push("bermuda");
+  })().catch(e=>LIVE_ERRORS.push("Bermuda: "+e.message)));
+
+  // ---- HEALTH (09) — latest value per metric
+  tasks.push((async()=>{
+    const r=await queryDB(DB.health,{page_size:100,sorts:[{property:"Date",direction:"descending"}]});
+    if(!r.results?.length) return;
+    const latest={};
+    r.results.forEach(pg=>{const p=pg.properties,m=P.sel(p,"Metric");
+      if(m && !(m in latest)) latest[m]={val:P.num(p,"Value"),unit:P.text(p,"Unit"),date:P.date(p,"Date")};});
+    if(!Object.keys(latest).length) return;
+    const map={Sleep:"Sleep Duration","Sleep Quality":"Sleep Quality",HRV:"HRV","Resting HR":"Resting HR",
+      "Energy AM":"Energy AM","Energy PM":"Energy PM",Bodyweight:"Bodyweight",Water:"Water Intake",
+      Caffeine:"Caffeine",Weed:"Weed Sessions",Alcohol:"Alcohol Units",Mood:"Mood",Steps:"Steps",
+      Sun:"Sun Exposure","Gym Quality":"Gym Quality"};
+    base.health.metrics = base.health.metrics.map(m=>{const v=latest[map[m.lab]];
+      return (v&&v.val!=null)?{...m,val:v.val,unit:v.unit||m.unit,live:true}:m;});
+    base.health.metrics.forEach(m=>{ if(!m.live) return;
+      if(m.lab==="Water") m.flag=m.val<2;
+      if(m.lab==="Sleep") m.warn=m.val<6;
+      if(m.lab==="Resting HR") m.warn=m.val>75;
+      if(m.lab==="Weed") m.warn=m.val>0; });
+    const newest=Object.values(latest).map(v=>v.date).filter(Boolean).sort().slice(-1)[0];
+    if(newest){const d=daysSince(newest); base.health.logged = d<=0?"today":d===1?"1d ago":d+"d ago";}
+    LIVE_PANELS.push("health");
+  })().catch(e=>LIVE_ERRORS.push("Health: "+e.message)));
+
+  // ---- HABITS (08) — streaks from Summit Habit Tracker (Jordan + Shared)
+  tasks.push((async()=>{
+    const r=await queryDB(DB.summitHabit,{page_size:100});
+    if(!r.results?.length) return;
+    const rows=r.results.map(pg=>{const p=pg.properties;
+      return {name:P.title(p,"Habit"),streak:P.num(p,"Current Streak")||0,owner:P.sel(p,"Owner")};})
+      .filter(x=>x.name && x.owner!=="Melissa");
+    if(!rows.length) return;
+    base.habits = base.habits.map(h=>{const key=h.name.split(" ")[0].toLowerCase();
+      const match=rows.find(x=>x.name.toLowerCase().includes(key));
+      return match?{...h,streak:match.streak,grid:gridGen(Math.min(Math.round(match.streak),45),0.82)}:h;});
+    LIVE_PANELS.push("habits");
+  })().catch(e=>LIVE_ERRORS.push("Habits: "+e.message)));
+
+  // ---- FINANCE (07) — aggregate from Finance Log
+  tasks.push((async()=>{
+    const r=await queryDB(DB.finance,{page_size:100});
+    if(!r.results?.length) return;
+    const rows=r.results.map(pg=>{const p=pg.properties;
+      return {cat:P.sel(p,"Category"),amt:P.num(p,"Amount")||0,date:P.date(p,"Date")};});
+    const yr=new Date().getFullYear(), mo=new Date().getMonth();
+    const sum=f=>rows.filter(f).reduce((a,b)=>a+b.amt,0);
+    const hobYtd=sum(x=>x.cat==="HoB Revenue"&&new Date(x.date).getFullYear()===yr);
+    const hobMonth=sum(x=>x.cat==="HoB Revenue"&&new Date(x.date).getFullYear()===yr&&new Date(x.date).getMonth()===mo);
+    const burn=sum(x=>x.cat==="Fixed Cost");
+    const emp=rows.filter(x=>x.cat==="Employment").sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
+    const cash=sum(x=>x.cat==="Cash");
+    base.finance={...base.finance,
+      hobYtd:hobYtd||base.finance.hobYtd, hobMonth:hobMonth||base.finance.hobMonth,
+      burn:burn||base.finance.burn, weeklyNet:emp?emp.amt:base.finance.weeklyNet,
+      cash:cash||base.finance.cash};
+    LIVE_PANELS.push("finance");
+  })().catch(e=>LIVE_ERRORS.push("Finance: "+e.message)));
+
+  await Promise.all(tasks);
+  return base;
+}
 async function getData(){
-  if(DEMO) return DEMO_DATA;
+  if(DEMO){ LIVE_PANELS=[]; LIVE_ERRORS=[]; return DEMO_DATA; }
   try{
-    // minimal live pull: today's daily log priority. (Extend per DB as ids are added.)
-    const data = JSON.parse(JSON.stringify(DEMO_DATA)); // start from shape, overlay live
-    if(CFG.daily){
-      const r = await notion(`blocks/${CFG.daily}/children`, null);
-      // best-effort: leave demo overlay; real schema mapping added as DBs come online
-    }
+    const base = JSON.parse(JSON.stringify(DEMO_DATA));
+    await hydrate(base);
     setOffline(false);
-    return data;
-  }catch(e){ setOffline(true); return cachedOr(DEMO_DATA); }
+    return base;
+  }catch(e){ setOffline(true); LIVE_ERRORS=["Fatal: "+e.message]; return cachedOr(DEMO_DATA); }
 }
 function cachedOr(fb){ try{return JSON.parse(localStorage.getItem("metis_mc_cache"))||fb}catch(e){return fb} }
 function cache(d){ try{localStorage.setItem("metis_mc_cache",JSON.stringify(d))}catch(e){} }
@@ -789,7 +896,7 @@ const PANELS = [
   {id:"overview",ico:"🏠",lb:"OVERVIEW",num:"01",title:"COMMAND DECK"},
   {id:"astro",ico:"⭐",lb:"ASTRO",num:"02",title:"HOROSCOPE LAYER"},
   {id:"house",ico:"🏛",lb:"HOUSE",num:"03",title:"HOUSE OF BURTON"},
-  {id:"projects",ico:"📁",lb:"PROJECTS",num:"04",title:"PROJECTS"},
+  {id:"bermuda",ico:"📖",lb:"BERMUDA",num:"04",title:"BERMUDA PROJECT"},
   {id:"protocols",ico:"⚖",lb:"PROTOCOLS",num:"05",title:"PROTOCOLS REGISTRY"},
   {id:"daily",ico:"📅",lb:"DAILY",num:"06",title:"DAILY LIFECYCLE"},
   {id:"finance",ico:"💰",lb:"FINANCE",num:"07",title:"FINANCE OVERVIEW"},
@@ -835,7 +942,7 @@ function render(){
 }
 function renderPanel(id){
   const el=document.getElementById("body-"+id); if(!el)return;
-  ({overview:rOverview,astro:rAstro,house:rHouse,projects:rProjects,protocols:rProtocols,
+  ({overview:rOverview,astro:rAstro,house:rHouse,bermuda:rBermuda,protocols:rProtocols,
     daily:rDaily,finance:rFinance,habits:rHabits,health:rHealth,arcs:rArcs,nodes:rNodes,
     anchors:rAnchors,system:rSystem}[id]||(()=>{}))(el);
 }
@@ -963,9 +1070,9 @@ function rHouse(el){
   const h=D.hob;
   el.innerHTML=`
   <div class="grid g3">
-    ${card("hb-c","ACTIVE CLIENTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">K-101 in pre-deploy</span></div>`)}
+    ${card("hb-c","ACTIVE CLIENTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">${h.pipeline.client}</span></div>`)}
     ${card("hb-ytd","YTD REVENUE",`<div class="stat"><span class="big">$${lucky(h.ytd.toLocaleString())}</span><span class="small">since Jan 1</span></div>`)}
-    ${card("hb-mo","THIS MONTH",`<div class="stat"><span class="big">$${lucky(h.month)}</span><span class="small">recurring maintenance</span></div>`)}
+    ${card("hb-mo","THIS MONTH",`<div class="stat"><span class="big">$${lucky(h.month)}</span><span class="small">revenue</span></div>`)}
   </div>
   <div style="margin-top:14px">${card("hb-pipe","PIPELINE",`
     <div class="kv"><span class="k">Client</span><span class="v">${h.pipeline.client}</span></div>
@@ -983,34 +1090,49 @@ function rHouse(el){
   <div class="grid g2" style="margin-top:14px">
     ${card("hb-man","MANIFESTO · DAILY",`<p style="font-size:14px;font-style:italic;line-height:1.7;margin:0">"${h.manifesto}"</p>`)}
     ${card("hb-next","BUSINESS NEXT ACTION",`<p style="font-size:14px;line-height:1.7;margin:0">${h.nextAction}</p>
-      <div class="muted" style="font-size:11px;margin-top:10px">→ See Panel 04 for execution view</div>`)}
+      <div class="muted" style="font-size:11px;margin-top:10px">House of Burton — revenue engine, active</div>`)}
   </div>`;
   document.getElementById("sub-house").textContent="Business / revenue view";
 }
 
 /* ---- PANEL 04 PROJECTS ---- */
-function rProjects(el){
-  const cls={Active:"active",Parked:"parked",Complete:"complete",Overdue:"overdue"};
-  el.innerHTML=`<div class="grid g2">${D.projects.map(p=>{
-    const dl = p.deadlineKey ? (CFG.deadline||ANCHORS_DEFAULT[p.deadlineKey]) : p.deadline;
-    const days = dl?daysUntil(dl):null;
-    const stale = p.lastDays>7;
-    return `<div class="pcard proj ${p.parked?'parked':''}">
-      <div class="ph"><h3>${p.icon} ${p.name}</h3><span class="pill ${cls[p.status]}">${p.status}</span></div>
-      <div class="meta">
-        Last touched: <span class="${stale?'fire':'muted'}">${p.lastDays}d ago${stale?' ⚠':''}</span><br/>
-        Next: ${p.next}<br/>
-        Owner: ${p.owner}${days!==null?` · <span class="gold mono">${days}d left</span>`:''}
-        ${p.note?`<br/><span class="muted" style="font-size:11px">${p.note}</span>`:''}
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span class="tl">${p.light}</span>
-        ${p.parked?'<button class="btn fire">⚡ REACTIVATE</button>':''}
-      </div>
-    </div>`}).join("")}</div>
-    <div class="muted" style="font-size:11px;margin-top:14px">
-      Bermuda deadline locked to <span class="gold mono">${CFG.deadline||ANCHORS_DEFAULT.bermuda}</span> · September delivery window. Editable in CONFIG.</div>`;
-  document.getElementById("sub-projects").textContent="Execution status board";
+/* ---- PANEL 04 BERMUDA PROJECT ---- */
+function rBermuda(el){
+  const b=D.bermuda;
+  const deadline=CFG.deadline||ANCHORS_DEFAULT.bermuda;
+  const daysLeft=daysUntil(deadline);
+  const pct=Math.min(100,Math.round((b.current/b.target)*100));
+  const remaining=Math.max(0,b.target-b.current);
+  const pace=daysLeft>0?Math.ceil(remaining/daysLeft):remaining;
+  const maxW=Math.max(...b.recent.map(r=>r.words),1);
+  el.innerHTML=`
+  <div class="grid g3">
+    ${card("bm-words","WORD COUNT",`<div class="stat"><span class="big gold">${lucky(b.current.toLocaleString())}</span>
+      <span class="small">of ${b.target.toLocaleString()} target</span></div>
+      <div class="pbar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
+      <div class="muted mono" style="font-size:11px;margin-top:6px">${lucky(pct,'%')} complete · ${remaining.toLocaleString()} to go</div>`)}
+    ${card("bm-dead","DEADLINE",`<div class="stat"><span class="big">${lucky(daysLeft)}</span><span class="small">days left · Sep 1 2026</span></div>
+      <div class="muted mono" style="font-size:11px;margin-top:10px">pace needed: <span class="gold">${pace.toLocaleString()}</span> words/day</div>`)}
+    ${card("bm-chap","CHAPTERS",`<div class="stat"><span class="big">${lucky(b.chaptersDone)}<span style="font-size:16px;color:var(--muted)"> / ${b.chaptersTotal}</span></span>
+      <span class="small">${b.phase}</span></div>
+      <div class="stages" style="margin-top:12px">${Array.from({length:b.chaptersTotal},(_,i)=>`<i class="${i<b.chaptersDone?'on':''}"></i>`).join("")}</div>`)}
+  </div>
+  <div style="margin-top:14px">${card("bm-next","TODAY'S TARGET",`
+    <div style="font-size:17px;font-weight:600;line-height:1.4">${b.next}</div>
+    <div style="margin-top:12px"><button class="btn go">✎ LOG WORDS WRITTEN</button></div>`)}
+  </div>
+  <div style="margin-top:14px">${card("bm-recent","RECENT SESSIONS",`
+    <div style="display:flex;align-items:flex-end;gap:10px;height:90px;padding:4px 0">
+      ${b.recent.map(r=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">
+        <span class="mono gold" style="font-size:11px">${r.words}</span>
+        <div style="width:70%;background:linear-gradient(180deg,var(--gold),var(--fire));border-radius:6px 6px 0 0;height:${Math.round((r.words/maxW)*64)}px"></div>
+        <span class="muted mono" style="font-size:9px">${r.date}</span></div>`).join("")}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:8px">Words/session · from Bermuda Project Tracker</div>`)}
+  </div>
+  <div class="muted" style="font-size:11px;margin-top:14px">
+    Sobriety commitment active until this ships. Deadline editable in CONFIG · currently <span class="gold mono">${deadline}</span>.</div>`;
+  document.getElementById("sub-bermuda").textContent = (LIVE_PANELS.includes("bermuda")?"LIVE":"DEMO")+" · the one that matters";
 }
 
 /* ---- PANEL 05 PROTOCOLS ---- */
@@ -1027,7 +1149,7 @@ function rProtocols(el){
         ${p.sinceViolation>=14?'✓ ':'⚠ '}${lucky(p.sinceViolation)} days clean</div>
     </div>`).join("")}</div>
     <div style="margin-top:14px"><button class="btn">+ ADD PROTOCOL</button></div>`;
-  document.getElementById("sub-protocols").textContent="Enforcement layer";
+  document.getElementById("sub-protocols").textContent=(LIVE_PANELS.includes("protocols")?"LIVE":"DEMO")+" · enforcement layer";
 }
 
 /* ---- PANEL 06 DAILY LIFECYCLE ---- */
@@ -1093,7 +1215,7 @@ function rFinance(el){
   <div style="margin-top:14px">${card("fn-q3","Q3 FORECAST",`<p style="font-size:14px;line-height:1.7;margin:0">
     <span class="violet">⬡ WATCH:</span> Bermuda delivery window = potential revenue event. Hold projections until manuscript ships.</p>`)}</div>
   <div class="muted" style="font-size:11px;margin-top:14px">Display only — no formulas. Enter numbers via Finance Log DB.</div>`;
-  document.getElementById("sub-finance").textContent="Numbers only";
+  document.getElementById("sub-finance").textContent=(LIVE_PANELS.includes("finance")?"LIVE":"DEMO")+" · numbers only";
 }
 
 /* ---- PANEL 08 HABITS ---- */
@@ -1118,7 +1240,7 @@ function rHabits(el){
       </div>
       <div class="heat">${h.grid.map(v=>`<i class="${v===3?'l3':v===2?'l2':v===1?'l1':v===-1?'miss':''}"></i>`).join("")}</div>
     `)}`).join("")}</div>`;
-  document.getElementById("sub-habits").textContent="Discipline · the streak is the signal";
+  document.getElementById("sub-habits").textContent=(LIVE_PANELS.includes("habits")?"LIVE":"DEMO")+" · the streak is the signal";
 }
 
 /* ---- PANEL 09 HEALTH ---- */
@@ -1151,7 +1273,7 @@ function rHealth(el){
     <div class="kv"><span class="k">Gym MWF non-negotiable</span><span class="v teal">●</span></div>
     <div class="kv"><span class="k">Weed Quit Protocol</span><span class="v teal">● ACTIVE 67d</span></div>
     <div class="muted" style="font-size:11px;margin-top:8px">→ full enforcement in Panel 05</div>`)}</div>`;
-  document.getElementById("sub-health").textContent="The body is operational equipment";
+  document.getElementById("sub-health").textContent=(LIVE_PANELS.includes("health")?"LIVE":"DEMO")+" · the body is operational equipment";
 }
 
 /* ---- PANEL 10 ARCS ---- */
@@ -1174,8 +1296,8 @@ function rArcs(el){
       <div class="kv"><span class="k">2028 · Year 1</span><span class="v teal">New cycle / seed</span></div>`)}
   </div>
   <div style="margin-top:14px">${card("ar-mile","MILESTONES TRACKED",`
-    <div class="kv"><span class="k">📖 Publishing — Bermuda Project</span><span class="v gold">62%</span></div>
-    <div class="kv"><span class="k">⚡ Androsia Link → revenue</span><span class="v">18%</span></div>
+    <div class="kv"><span class="k">📖 Publishing — Bermuda Project</span><span class="v gold">61%</span></div>
+    <div class="kv"><span class="k">🏛 House of Burton — to delivery</span><span class="v">40%</span></div>
     <div class="kv"><span class="k">🏠 Property / marriage</span><span class="v muted">Operator defines</span></div>`)}</div>`;
   document.getElementById("sub-arcs").textContent="The long view";
 }
@@ -1259,7 +1381,7 @@ function buildNav(){
   const badge=(id)=>{
     if(id==="health"&&ac.health) return `<span class="badge alert">${ac.health}</span>`;
     if(id==="protocols"&&ac.proto) return `<span class="badge">${ac.proto}</span>`;
-    if(id==="projects") return `<span class="badge go">${D.projects.filter(p=>p.status==='Active').length}</span>`;
+    if(id==="bermuda"){const dl=CFG.deadline||ANCHORS_DEFAULT.bermuda;return `<span class="badge go">${daysUntil(dl)}d</span>`;}
     return "";
   };
   document.getElementById("nav").innerHTML = PANELS.map(p=>
@@ -1286,6 +1408,10 @@ function updateRibbon(){
 }
 function renderBanners(){
   const b=document.getElementById("banners"); let html="";
+  if(!DEMO && typeof LIVE_ERRORS!=='undefined' && LIVE_ERRORS.length){
+    html+=`<div class="banner proto"><span class="dot"></span>
+      LIVE FETCH ISSUE — ${LIVE_ERRORS.join(' · ')}. Showing demo for affected panels. Check token is shared with each DB.</div>`;
+  }
   D.health.metrics.forEach(m=>{ if(m.warn) html+=`<div class="banner health"><span class="dot"></span>
     HEALTH WARNING — ${m.lab}: ${m.val}${m.unit} (target ${m.tgt})</div>`; });
   const weed=D.health.metrics.find(m=>m.lab==='Weed');
@@ -1306,7 +1432,8 @@ function cmdSearch(q){
   q=q.toLowerCase();
   const extra=[
     ...D.protocols.map(p=>({type:"proto",t:p.name,s:"PROTOCOL",ico:"⚖",go:"protocols"})),
-    ...D.projects.map(p=>({type:"proj",t:p.name,s:"PROJECT",ico:p.icon,go:"projects"})),
+    {type:"panel",t:"Bermuda Project",s:"WRITING",ico:"📖",go:"bermuda"},
+    {type:"panel",t:"House of Burton",s:"BUSINESS",ico:"🏛",go:"house"},
     ...D.health.metrics.map(m=>({type:"metric",t:m.lab,s:"HEALTH",ico:"❤️",go:"health"})),
   ];
   const all=[...CMD_INDEX.map(c=>({...c,go:c.id})),...extra];
