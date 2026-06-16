@@ -799,6 +799,46 @@ const P = {
 };
 function daysSince(d){ if(!d) return null; return Math.floor((Date.now()-Date.parse(d))/86400000); }
 
+/* ---- read helpers (proxy GET path: blocks/{id}/children, no body) ---- */
+function getChildren(id){ return nfetch(`blocks/${id}/children?page_size=100`); }
+async function getAllChildren(id){
+  let results=[],cursor=null,guard=0;
+  do{
+    const ep=`blocks/${id}/children?page_size=100`+(cursor?`&start_cursor=${encodeURIComponent(cursor)}`:"");
+    const r=await nfetch(ep); results=results.concat(r.results||[]);
+    cursor=r.has_more?r.next_cursor:null; guard++;
+  }while(cursor && guard<6);
+  return {results};
+}
+function rtText(rt){ return (rt||[]).map(t=>t.plain_text||(t.text&&t.text.content)||"").join(""); }
+function blockText(b){ const t=b&&b.type, d=t&&b[t]; return (d&&d.rich_text)?rtText(d.rich_text):""; }
+/* parse a daily-log child page's blocks into {heading,text} sections */
+function parseLogBlocks(blocks){
+  const sections=[]; let cur={heading:"",text:""};
+  const flush=()=>{ if(cur.heading||cur.text.trim()) sections.push({heading:cur.heading,text:cur.text.trim()}); };
+  (blocks||[]).forEach(b=>{
+    const t=b.type;
+    if(t==="heading_1"||t==="heading_2"||t==="heading_3"){ flush(); cur={heading:blockText(b),text:""}; }
+    else { const tx=blockText(b); if(tx) cur.text+=(cur.text?"\n":"")+tx; }
+  });
+  flush(); return sections;
+}
+
+/* honest empty state (reuses existing classes only) */
+const EMPTY_NOTE="no entries yet — log via Orion";
+function emptyBox(msg){ return `<div class="muted" style="font-size:13px;line-height:1.6;padding:4px 0">○ ${msg||EMPTY_NOTE}</div>`; }
+/* truthful grid: a streak of N means the last N days WERE completed — fill those, leave older unknown/neutral. No randomness. */
+function streakGrid(streak,cells=45){ const out=[]; streak=Math.max(0,Math.min(cells,Math.round(streak||0)));
+  for(let i=0;i<cells;i++) out.push(i>=cells-streak?3:0); return out; }
+/* panel state tag — ● LIVE / ○ EMPTY / ◇ COMPUTED / ✎ MANUAL (+ ◦ DEMO) */
+function stag(state,note){
+  const M={live:["● LIVE","teal"],empty:["○ EMPTY","muted"],computed:["◇ COMPUTED","gold"],
+    manual:["✎ MANUAL","violet"],demo:["◦ DEMO","gold"]};
+  const [t,c]=M[state]||M.empty;
+  return `<span class="mono ${c}">${t}</span>${note?` <span class="muted">· ${note}</span>`:""}`;
+}
+function setSub(id,state,note){ const e=document.getElementById("sub-"+id); if(e) e.innerHTML=stag(state,note); }
+
 let LIVE_ERRORS=[], LIVE_PANELS=[];
 async function hydrate(base){
   LIVE_ERRORS=[]; LIVE_PANELS=[];
@@ -858,12 +898,12 @@ async function hydrate(base){
     const r=await queryDB(DB.summitHabit,{page_size:100});
     if(!r.results?.length) return;
     const rows=r.results.map(pg=>{const p=pg.properties;
-      return {name:P.title(p,"Habit"),streak:P.num(p,"Current Streak")||0,owner:P.sel(p,"Owner")};})
+      return {name:P.title(p,"Habit"),streak:P.num(p,"Current Streak")||0,
+        best:P.num(p,"Best Streak")||P.num(p,"Longest Streak")||0,owner:P.sel(p,"Owner")};})
       .filter(x=>x.name && x.owner!=="Melissa");
     if(!rows.length) return;
-    base.habits = base.habits.map(h=>{const key=h.name.split(" ")[0].toLowerCase();
-      const match=rows.find(x=>x.name.toLowerCase().includes(key));
-      return match?{...h,streak:match.streak,grid:gridGen(Math.min(Math.round(match.streak),45),0.82)}:h;});
+    base.habits = rows.slice(0,6).map(x=>({name:x.name,streak:x.streak,
+      best:Math.max(x.best,x.streak),grid:streakGrid(x.streak,45)}));  // grid is truthful, not random
     LIVE_PANELS.push("habits");
   })().catch(e=>LIVE_ERRORS.push("Habits: "+e.message)));
 
@@ -887,17 +927,89 @@ async function hydrate(base){
     LIVE_PANELS.push("finance");
   })().catch(e=>LIVE_ERRORS.push("Finance: "+e.message)));
 
+  // ---- DAILY LOGS (06 + Command Deck) — a PAGE of dated child-pages, not a DB
+  tasks.push((async()=>{
+    const PAGE="32e1c1ef-7923-812b-8671-ea895c6266d9";
+    const r=await getAllChildren(PAGE);
+    const kids=(r.results||[]).filter(b=>b.type==="child_page").map(b=>{
+      const title=(b.child_page&&b.child_page.title)||"";
+      const m=title.match(/(\d{4}-\d{2}-\d{2})/);
+      return (m && /daily log/i.test(title))?{id:b.id,title,date:m[1]}:null;
+    }).filter(Boolean);
+    if(!kids.length) return;
+    kids.sort((a,b)=>b.date.localeCompare(a.date));         // latest date wins
+    const latest=kids[0];
+    const cr=await getChildren(latest.id);
+    const sections=parseLogBlocks(cr.results||[]);
+    const prio=sections.find(s=>/priority/i.test(s.heading));
+    if(prio && prio.text) base.todayPriority=prio.text;     // → Command Deck ONE Priority + ribbon
+    const flat=sections.map(s=>`${s.heading}\n${s.text}`).join("\n");
+    const weedM=flat.match(/weed[\s-]*free[:\s]*?(yes|no)/i);
+    const streakM=flat.match(/streak[:\s#]*?(\d{1,4})/i);
+    const recap=sections.find(s=>/key event|summary|recap|notes/i.test(s.heading));
+    base.dailyLog={date:latest.date,title:latest.title,sections};
+    base.yesterday={
+      date:latest.date,
+      body:(recap&&recap.text)||sections.filter(s=>!/priority/i.test(s.heading)).map(s=>s.text).join("  ").trim()||flat.trim(),
+      priorityHit:/priorit[\s\S]{0,40}(hit|complete|done|✓|\byes\b)/i.test(flat)?true:(/priorit[\s\S]{0,40}(miss|✗|\bno\b)/i.test(flat)?false:null),
+      weedFree:weedM?/yes/i.test(weedM[1]):null,
+      streak:streakM?+streakM[1]:null,
+      logWritten:true
+    };
+    LIVE_PANELS.push("daily");
+  })().catch(e=>LIVE_ERRORS.push("Daily Logs: "+e.message)));
+
+  // ---- NODES (11) — War Room Persons DB tier counts. Read-only mirror, code names only.
+  tasks.push((async()=>{
+    const PERSONS=normId(CFG.war)||"3231c1ef-7923-8144-8173-d83db466d2a3";
+    const r=await queryDB(PERSONS);
+    if(!r.results) return;
+    let t1=0,t2=0,t3=0;
+    r.results.forEach(pg=>{const tier=P.sel(pg.properties,"Tier");
+      if(/(^|\D)1(\D|$)/.test(tier)||/critical/i.test(tier)) t1++;
+      else if(/(^|\D)2(\D|$)/.test(tier)||/high/i.test(tier)) t2++;
+      else if(/(^|\D)3(\D|$)/.test(tier)||/medium/i.test(tier)) t3++;
+    });
+    base.nodes={...base.nodes,t1,t2,t3};
+    LIVE_PANELS.push("nodes");
+    try{ const s=await queryDB("3231c1ef-7923-81de-964a-f8069f2f7f4d");   // Situations DB — best-effort count
+      if(s && s.results) base.nodes.situations=s.results.length; }catch(_){}
+  })().catch(e=>LIVE_ERRORS.push("Nodes: "+e.message)));
+
   await Promise.all(tasks);
+  return base;
+}
+/* LIVE never shows demo numbers. We seed STRUCTURE from DEMO_DATA, then neutralize
+   every field that has no live source so renderers fall to honest empty / computed
+   states. hydrate() then fills only what Notion actually returns. */
+function stripDemoToHonest(base){
+  base.todayPriority="";
+  base.yesterday={body:"",priorityHit:null,streak:null,weedFree:null,logWritten:null,date:""};
+  base.dailyLog=null;
+  base.health={metrics:[],injuries:[],logged:"—"};                 // Health DB empty by design
+  base.finance={empty:true,weeklyNet:null,cash:null,hobYtd:null,hobMonth:null,hobWeek:null,burn:null,savingsRate:null};
+  base.astro={sun:"",moon:"",rising:"",weekly:""};                 // readings are manual Orion drops
+  base.hob={empty:true,activeClients:null,ytd:null,month:null,
+    pipeline:{client:"",phase:"",next:"",daysToMilestone:null},projects:[],
+    manifesto:base.hob.manifesto,nextAction:""};
+  base.bermuda={...base.bermuda,current:0,recent:[],chaptersDone:null,phase:"",next:""}; // target/total kept (structural)
+  base.protocols=[];
+  base.habits=[];
+  base.freezes=null;
+  base.nodes={t1:0,t2:0,t3:0,situations:null,nextAction:""};
+  base.system={...base.system,sync:[],uptime:"—",sessions:[]};
   return base;
 }
 async function getData(){
   if(DEMO){ LIVE_PANELS=[]; LIVE_ERRORS=[]; return DEMO_DATA; }
   try{
     const base = JSON.parse(JSON.stringify(DEMO_DATA));
+    stripDemoToHonest(base);          // <-- no demo leakage into LIVE
     await hydrate(base);
     setOffline(false);
     return base;
-  }catch(e){ setOffline(true); LIVE_ERRORS=["Fatal: "+e.message]; return cachedOr(DEMO_DATA); }
+  }catch(e){ setOffline(true); LIVE_ERRORS=["Fatal: "+e.message];
+    return cachedOr(stripDemoToHonest(JSON.parse(JSON.stringify(DEMO_DATA)))); }
 }
 function cachedOr(fb){ try{return JSON.parse(localStorage.getItem("metis_mc_cache"))||fb}catch(e){return fb} }
 function cache(d){ try{localStorage.setItem("metis_mc_cache",JSON.stringify(d))}catch(e){} }
@@ -1023,14 +1135,17 @@ function rOverview(el){
   </div>
 
   <div style="margin-top:14px">${card("ov-yest","YESTERDAY",`
+    ${(DEMO||y.priorityHit!=null||y.streak!=null||y.weedFree!=null)?`
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <span class="pill ${y.priorityHit?'complete':'overdue'}">${y.priorityHit?'PRIORITY COMPLETED ✓':'MISSED ✗'}</span>
-      <span class="mono" style="font-size:13px">STREAK <span class="lucky">${y.streak}</span> <span class="flame"></span></span>
-      <span class="pill ${y.weedFree?'complete':'overdue'}">${y.weedFree?'WEED-FREE':'VIOLATION'}</span>
-    </div>
-    <div class="muted" style="font-size:13px;margin-top:12px;line-height:1.6">${y.body}</div>`)}
+      ${y.priorityHit==null?'':`<span class="pill ${y.priorityHit?'complete':'overdue'}">${y.priorityHit?'PRIORITY COMPLETED ✓':'MISSED ✗'}</span>`}
+      ${y.streak==null?'':`<span class="mono" style="font-size:13px">STREAK <span class="lucky">${y.streak}</span> <span class="flame"></span></span>`}
+      ${y.weedFree==null?'':`<span class="pill ${y.weedFree?'complete':'overdue'}">${y.weedFree?'WEED-FREE':'VIOLATION'}</span>`}
+    </div>`:''}
+    <div class="muted" style="font-size:13px;margin-top:12px;line-height:1.6">${y.body||(DEMO?'':'○ no log parsed yet — write today’s log via Orion')}</div>
+    ${(!DEMO&&D.dailyLog)?`<div class="muted mono" style="font-size:11px;margin-top:8px">from ${D.dailyLog.date} — Daily Log</div>`:''}`)}
   </div>`;
-  document.getElementById("sub-overview").textContent = DEMO?"DEMO MODE":"LIVE";
+  if(DEMO) setSub("overview","demo","seed data");
+  else setSub("overview", D.dailyLog?"live":"empty", D.dailyLog?("daily log · "+D.dailyLog.date):"no daily log yet");
 }
 
 /* ---- PANEL 02 HOROSCOPE ---- */
@@ -1056,11 +1171,11 @@ function rAstro(el){
   ${mret.active?`<div class="banner proto" style="margin-bottom:14px"><span class="dot"></span>
      ☿ MERCURY RETROGRADE ACTIVE — revise, don't launch. Clears ${fmtDate(mret.until).mon} ${mret.until.getDate()}.</div>`:''}
   <div class="grid g3">
-    ${card("as-sun","☉ SUN · GEMINI",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.sun}</p>`)}
-    ${card("as-moon","☾ MOON · AQUARIUS",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.moon}</p>`)}
-    ${card("as-rise","↑ RISING · SCORPIO",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.rising}</p>`)}
+    ${card("as-sun","☉ SUN · GEMINI",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.sun||'✎ awaiting Orion drop'}</p>`)}
+    ${card("as-moon","☾ MOON · AQUARIUS",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.moon||'✎ awaiting Orion drop'}</p>`)}
+    ${card("as-rise","↑ RISING · SCORPIO",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${a.rising||'✎ awaiting Orion drop'}</p>`)}
   </div>
-  <div style="margin-top:14px">${card("as-week","WEEKLY READ",`<p style="font-size:14px;line-height:1.7;margin:0">${a.weekly}</p>`)}</div>
+  <div style="margin-top:14px">${card("as-week","WEEKLY READ",`<p style="font-size:14px;line-height:1.7;margin:0">${a.weekly||'<span class="muted">✎ awaiting Orion drop</span>'}</p>`)}</div>
   <div style="margin-top:14px">${card("as-cal","LUNAR CALENDAR · "+fmtDate(now).mon,`
     <div class="cal-h"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
     <div class="cal">${calCells}</div>
@@ -1075,12 +1190,22 @@ function rAstro(el){
       <div class="kv"><span class="k">Saturn (Aries ingress)</span><span class="v">${lucky(saturnLeft)} mo left in yr</span></div>
       <div class="muted" style="font-size:11px;margin-top:8px">Saturn Return arc 2023–2026. Structure over comfort.</div>`)}
   </div>`;
-  document.getElementById("sub-astro").textContent="Strategic intel · manual Orion drops";
+  if(DEMO) setSub("astro","demo","strategic intel");
+  else setSub("astro","computed","lunar/retro/numerology math · ✎ manual readings");
 }
 
 /* ---- PANEL 03 HOUSE OF BURTON ---- */
 function rHouse(el){
   const h=D.hob;
+  if(!DEMO && h.empty){
+    el.innerHTML=`
+    <div class="grid g2">
+      ${card("hb-man","MANIFESTO · DAILY",`<p style="font-size:14px;font-style:italic;line-height:1.7;margin:0">"${h.manifesto}"</p>`)}
+      ${card("hb-empty","HOUSE OF BURTON",emptyBox("no House of Burton metrics wired — clients & revenue log via Orion"))}
+    </div>`;
+    setSub("house","empty","no live HoB source");
+    return;
+  }
   el.innerHTML=`
   <div class="grid g3">
     ${card("hb-c","ACTIVE CLIENTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">${h.pipeline.client}</span></div>`)}
@@ -1105,7 +1230,7 @@ function rHouse(el){
     ${card("hb-next","BUSINESS NEXT ACTION",`<p style="font-size:14px;line-height:1.7;margin:0">${h.nextAction}</p>
       <div class="muted" style="font-size:11px;margin-top:10px">House of Burton — revenue engine, active</div>`)}
   </div>`;
-  document.getElementById("sub-house").textContent="Business / revenue view";
+  setSub("house","demo","business / revenue view");
 }
 
 /* ---- PANEL 04 PROJECTS ---- */
@@ -1126,30 +1251,37 @@ function rBermuda(el){
       <div class="muted mono" style="font-size:11px;margin-top:6px">${lucky(pct,'%')} complete · ${remaining.toLocaleString()} to go</div>`)}
     ${card("bm-dead","DEADLINE",`<div class="stat"><span class="big">${lucky(daysLeft)}</span><span class="small">days left · Sep 1 2026</span></div>
       <div class="muted mono" style="font-size:11px;margin-top:10px">pace needed: <span class="gold">${pace.toLocaleString()}</span> words/day</div>`)}
-    ${card("bm-chap","CHAPTERS",`<div class="stat"><span class="big">${lucky(b.chaptersDone)}<span style="font-size:16px;color:var(--muted)"> / ${b.chaptersTotal}</span></span>
-      <span class="small">${b.phase}</span></div>
-      <div class="stages" style="margin-top:12px">${Array.from({length:b.chaptersTotal},(_,i)=>`<i class="${i<b.chaptersDone?'on':''}"></i>`).join("")}</div>`)}
+    ${card("bm-chap","CHAPTERS",`<div class="stat"><span class="big">${b.chaptersDone==null?'—':lucky(b.chaptersDone)}<span style="font-size:16px;color:var(--muted)"> / ${b.chaptersTotal}</span></span>
+      <span class="small">${b.phase||(DEMO?'':'phase not set')}</span></div>
+      <div class="stages" style="margin-top:12px">${Array.from({length:b.chaptersTotal},(_,i)=>`<i class="${i<(b.chaptersDone||0)?'on':''}"></i>`).join("")}</div>`)}
   </div>
   <div style="margin-top:14px">${card("bm-next","TODAY'S TARGET",`
-    <div style="font-size:17px;font-weight:600;line-height:1.4">${b.next}</div>
+    <div style="font-size:17px;font-weight:600;line-height:1.4">${b.next||D.todayPriority||(DEMO?'':'<span class="muted">○ no target set — pull from today’s log</span>')}</div>
     <div style="margin-top:12px"><button class="btn go">✎ LOG WORDS WRITTEN</button></div>`)}
   </div>
   <div style="margin-top:14px">${card("bm-recent","RECENT SESSIONS",`
-    <div style="display:flex;align-items:flex-end;gap:10px;height:90px;padding:4px 0">
+    ${b.recent.length?`<div style="display:flex;align-items:flex-end;gap:10px;height:90px;padding:4px 0">
       ${b.recent.map(r=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">
         <span class="mono gold" style="font-size:11px">${r.words}</span>
         <div style="width:70%;background:linear-gradient(180deg,var(--gold),var(--fire));border-radius:6px 6px 0 0;height:${Math.round((r.words/maxW)*64)}px"></div>
         <span class="muted mono" style="font-size:9px">${r.date}</span></div>`).join("")}
-    </div>
+    </div>`:emptyBox('no logged sessions yet')}
     <div class="muted" style="font-size:11px;margin-top:8px">Words/session · from Bermuda Project Tracker</div>`)}
   </div>
   <div class="muted" style="font-size:11px;margin-top:14px">
     Sobriety commitment active until this ships. Deadline editable in CONFIG · currently <span class="gold mono">${deadline}</span>.</div>`;
-  document.getElementById("sub-bermuda").textContent = (LIVE_PANELS.includes("bermuda")?"LIVE":"DEMO")+" · the one that matters";
+  if(DEMO) setSub("bermuda","demo","the one that matters");
+  else setSub("bermuda", LIVE_PANELS.includes("bermuda")?"live":"computed",
+    LIVE_PANELS.includes("bermuda")?"word-count tracker":"countdown computed · tracker empty");
 }
 
 /* ---- PANEL 05 PROTOCOLS ---- */
 function rProtocols(el){
+  if(!D.protocols.length){
+    el.innerHTML=emptyBox(DEMO?"no protocols":"no protocols loaded — confirm Protocols DB is shared with the token");
+    setSub("protocols",DEMO?"demo":"empty","enforcement layer");
+    return;
+  }
   const sorted=[...D.protocols].sort((a,b)=>(b.crit-a.crit));
   el.innerHTML=`<div class="grid g2">${sorted.map(p=>`
     <div class="pcard ${p.crit?'crit':''}">
@@ -1162,7 +1294,7 @@ function rProtocols(el){
         ${p.sinceViolation>=14?'✓ ':'⚠ '}${lucky(p.sinceViolation)} days clean</div>
     </div>`).join("")}</div>
     <div style="margin-top:14px"><button class="btn">+ ADD PROTOCOL</button></div>`;
-  document.getElementById("sub-protocols").textContent=(LIVE_PANELS.includes("protocols")?"LIVE":"DEMO")+" · enforcement layer";
+  setSub("protocols", LIVE_PANELS.includes("protocols")?"live":"demo","enforcement layer");
 }
 
 /* ---- PANEL 06 DAILY LIFECYCLE ---- */
@@ -1178,7 +1310,11 @@ function rDaily(el){
     wk+=`<div class="wk ${isToday?'today':''}">
       <div class="wd">${["S","M","T","W","T","F","S"][i]}</div>
       <div class="wn">${dt.getDate()}</div>
-      <div class="dots"><i class="${past&&Math.random()>.2?'on':''}"></i><i class="${past&&Math.random()>.15?'teal':''}"></i></div></div>`;
+      <div class="dots">${(()=>{
+        if(DEMO) return `<i class="${past&&Math.random()>.2?'on':''}"></i><i class="${past&&Math.random()>.15?'teal':''}"></i>`;
+        const within = past && y.streak!=null && (now.getDay()-i)>=0 && (now.getDay()-i)<y.streak;
+        return `<i class="${within?'on':''}"></i><i class="${within&&D.dailyLog?'teal':''}"></i>`;
+      })()}</div></div>`;
   }
   // month calendar color-coded
   const yr=now.getFullYear(),mo=now.getMonth(),days=new Date(yr,mo+1,0).getDate(),first=new Date(yr,mo,1).getDay();
@@ -1186,16 +1322,18 @@ function rDaily(el){
   for(let i=0;i<first;i++) cal+=`<div class="cd0" style="visibility:hidden"></div>`;
   for(let d=1;d<=days;d++){
     const dt=new Date(yr,mo,d),isToday=d===now.getDate(),future=dt>now;
-    let cls=future?"future":(()=>{const r=Math.random();return r>.6?"gold":r>.25?"silver":"orange"})();
+    let cls=future?"future":(DEMO?(()=>{const r=Math.random();return r>.6?"gold":r>.25?"silver":"orange"})():"");
     cal+=`<div class="cd0 ${cls} ${isToday?'today':''}">${d}</div>`;
   }
   el.innerHTML=`
   <div>${card("dl-today","TODAY'S LOG",`
-    <div style="font-size:15px;font-weight:600;margin-bottom:8px">${D.todayPriority}</div>
-    <div class="muted" style="font-size:13px;line-height:1.6">
-      ${DEMO?'Demo log. ':''}Deep work block pending · weed-free streak <span class="lucky">${y.streak}</span> · log auto-writes at evening review.</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px">${D.todayPriority||(DEMO?'':'<span class="muted">— no priority parsed —</span>')}</div>
+    ${DEMO?`<div class="muted" style="font-size:13px;line-height:1.6">Demo log. Deep work block pending · weed-free streak <span class="lucky">${y.streak}</span> · log auto-writes at evening review.</div>`
+      :(D.dailyLog?`<div class="muted" style="font-size:13px;line-height:1.65;white-space:pre-line">${(D.dailyLog.sections||[]).map(s=>(s.heading?('• '+s.heading+(s.text?': ':'')):'')+s.text).join('\n')||y.body}</div>
+        <div class="muted mono" style="font-size:11px;margin-top:8px">${D.dailyLog.title}</div>`
+      :emptyBox('no daily log found — Orion writes one each evening'))}
     <div style="margin-top:12px"><button class="btn go">✎ QUICK-LOG</button></div>`)}</div>
-  <div style="margin-top:14px">${card("dl-yest","YESTERDAY",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${y.body}</p>`)}</div>
+  <div style="margin-top:14px">${card("dl-yest","YESTERDAY",`<p class="muted" style="font-size:13px;line-height:1.65;margin:0">${y.body||(DEMO?'':'○ no prior log parsed')}</p>`)}</div>
   <div style="margin-top:14px">${card("dl-week","THIS WEEK",`<div class="wkstrip">${wk}</div>
     <div class="muted" style="font-size:11px;margin-top:10px">● priority hit · <span class="teal">●</span> log written</div>`)}</div>
   <div style="margin-top:14px">${card("dl-month","THIS MONTH",`
@@ -1203,12 +1341,25 @@ function rDaily(el){
     <div class="cal">${cal}</div>
     <div class="muted" style="font-size:11px;margin-top:10px">
       <span class="gold">█</span> high-output · <span class="muted">█</span> normal · <span class="fire">█</span> partial</div>`)}</div>`;
-  document.getElementById("sub-daily").textContent="Life log · time-contextual";
+  if(DEMO) setSub("daily","demo","life log");
+  else setSub("daily", D.dailyLog?"live":"empty", D.dailyLog?("daily log · "+D.dailyLog.date):"no log yet");
 }
 
 /* ---- PANEL 07 FINANCE ---- */
 function rFinance(el){
-  const f=D.finance, takeHome=f.weeklyNet+f.cash, net=takeHome*4 - f.burn;
+  const f=D.finance;
+  if(!DEMO && f.empty){
+    el.innerHTML=`
+    <div class="grid g3">
+      ${card("fn-wk","WEEKLY NET",emptyBox("—"))}
+      ${card("fn-hob","HoB REVENUE",emptyBox("—"))}
+      ${card("fn-burn","MONTHLY BURN",emptyBox("—"))}
+    </div>
+    <div style="margin-top:14px">${card("fn-note","FINANCE LOG",emptyBox("Finance DB is empty by design — "+EMPTY_NOTE))}</div>`;
+    setSub("finance","empty","Finance DB empty by design");
+    return;
+  }
+  const takeHome=f.weeklyNet+f.cash, net=takeHome*4 - f.burn;
   el.innerHTML=`
   <div class="grid g3">
     ${card("fn-wk","WEEKLY NET",`<div class="stat"><span class="big gold">$${lucky(f.weeklyNet.toLocaleString())}</span><span class="small">Z-210 employment</span></div>`)}
@@ -1228,21 +1379,33 @@ function rFinance(el){
   <div style="margin-top:14px">${card("fn-q3","Q3 FORECAST",`<p style="font-size:14px;line-height:1.7;margin:0">
     <span class="violet">⬡ WATCH:</span> Bermuda delivery window = potential revenue event. Hold projections until manuscript ships.</p>`)}</div>
   <div class="muted" style="font-size:11px;margin-top:14px">Display only — no formulas. Enter numbers via Finance Log DB.</div>`;
-  document.getElementById("sub-finance").textContent=(LIVE_PANELS.includes("finance")?"LIVE":"DEMO")+" · numbers only";
+  setSub("finance","demo","numbers only");
 }
 
 /* ---- PANEL 08 HABITS ---- */
 function rHabits(el){
+  if(!D.habits.length){
+    el.innerHTML=emptyBox(DEMO?"no habits":"no habit data — confirm Summit Habit Tracker is shared with the token");
+    setSub("habits",DEMO?"demo":"empty","streaks");
+    return;
+  }
   const fr=D.freezes;
+  const scoreCells=(()=>{
+    if(DEMO) return Array.from({length:35},()=>Math.random()>.3?(Math.random()>.5?'l3':'l2'):'').map(c=>`<i class="${c}"></i>`).join("");
+    // LIVE: truthful — a streak of N means the last N days were completed
+    const hs=D.habits.slice(0,5); let out="";
+    for(let r=0;r<5;r++){ const st=hs[r]?hs[r].streak:0;
+      for(let d=0;d<7;d++){ out+=`<i class="${(6-d)<st?'l3':''}"></i>`; } }
+    return out;
+  })();
   el.innerHTML=`
   <div class="grid g2" style="margin-bottom:14px">
-    ${card("hb-frz","FREEZE INVENTORY",`
+    ${card("hb-frz","FREEZE INVENTORY", fr?`
       <div class="kv"><span class="k">This week</span><span class="v">${fr.week} / 1</span></div>
-      <div class="kv"><span class="k">This month</span><span class="v">${fr.month} / 2</span></div>`)}
+      <div class="kv"><span class="k">This month</span><span class="v">${fr.month} / 2</span></div>`:emptyBox("not tracked yet"))}
     ${card("hb-score","WEEK SCORECARD",`
-      <div class="heat" style="grid-template-columns:repeat(7,1fr)">
-        ${Array.from({length:35},(_,i)=>`<i class="${Math.random()>.3?(Math.random()>.5?'l3':'l2'):''}"></i>`).join("")}
-      </div><div class="muted" style="font-size:11px;margin-top:8px">5 habits × 7 days</div>`)}
+      <div class="heat" style="grid-template-columns:repeat(7,1fr)">${scoreCells}</div>
+      <div class="muted" style="font-size:11px;margin-top:8px">${Math.min(D.habits.length,5)} habits × 7 days</div>`)}
   </div>
   <div class="grid g2">${D.habits.map((h,i)=>`
     ${card("ha-"+i,h.name,`
@@ -1253,12 +1416,22 @@ function rHabits(el){
       </div>
       <div class="heat">${h.grid.map(v=>`<i class="${v===3?'l3':v===2?'l2':v===1?'l1':v===-1?'miss':''}"></i>`).join("")}</div>
     `)}`).join("")}</div>`;
-  document.getElementById("sub-habits").textContent=(LIVE_PANELS.includes("habits")?"LIVE":"DEMO")+" · the streak is the signal";
+  setSub("habits", LIVE_PANELS.includes("habits")?"live":"demo","the streak is the signal");
 }
 
 /* ---- PANEL 09 HEALTH ---- */
 function rHealth(el){
   const h=D.health;
+  if(!DEMO && (!h.metrics || !h.metrics.length)){
+    el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn go">+ LOG TODAY'S HEALTH</button>
+      <span class="muted mono" style="font-size:11px">LOGGED ${h.logged}</span>
+    </div>
+    <div class="card tealh">${emptyBox("Health DB is empty by design — "+EMPTY_NOTE)}</div>`;
+    setSub("health","empty","Health DB empty by design");
+    return;
+  }
   const cards=h.metrics.map((m,i)=>{
     const cls=m.warn?'warn':m.flag?'flag':'';
     return `<div class="hm ${cls}">
@@ -1286,18 +1459,25 @@ function rHealth(el){
     <div class="kv"><span class="k">Gym MWF non-negotiable</span><span class="v teal">●</span></div>
     <div class="kv"><span class="k">Weed Quit Protocol</span><span class="v teal">● ACTIVE 67d</span></div>
     <div class="muted" style="font-size:11px;margin-top:8px">→ full enforcement in Panel 05</div>`)}</div>`;
-  document.getElementById("sub-health").textContent=(LIVE_PANELS.includes("health")?"LIVE":"DEMO")+" · the body is operational equipment";
+  setSub("health","demo","the body is operational equipment");
 }
 
 /* ---- PANEL 10 ARCS ---- */
 function rArcs(el){
   const a=D.arcs;
+  const goalPct=(g)=>{
+    if(DEMO) return g.pct;
+    if(/bermuda/i.test(g.g) && D.bermuda && D.bermuda.target)
+      return Math.min(100,Math.round((D.bermuda.current||0)/D.bermuda.target*100));
+    return null; // other arcs are manual until logged
+  };
+  const milBermudaPct=DEMO?61:(D.bermuda&&D.bermuda.target?Math.min(100,Math.round((D.bermuda.current||0)/D.bermuda.target*100)):0);
   el.innerHTML=`
   <div>${card("ar-yr","YEAR 8 · 2026",`
     <div style="font-family:var(--mono);font-size:14px;letter-spacing:.08em;margin-bottom:14px">${a.yearTheme}</div>
-    ${a.goals.map(g=>`<div style="margin-bottom:14px">
-      <div class="kv" style="border:none;padding:0 0 4px"><span class="k">${g.g}</span><span class="v gold">${lucky(g.pct,'%')}</span></div>
-      <div class="pbar"><i style="width:${g.pct}%"></i></div></div>`).join("")}`)}
+    ${a.goals.map(g=>{const p=goalPct(g);return `<div style="margin-bottom:14px">
+      <div class="kv" style="border:none;padding:0 0 4px"><span class="k">${g.g}</span><span class="v gold">${p==null?'<span class="muted">✎ —</span>':lucky(p,'%')}</span></div>
+      <div class="pbar"><i style="width:${p==null?0:p}%"></i></div></div>`;}).join("")}`)}
   </div>
   <div class="grid g2" style="margin-top:14px">
     ${card("ar-y9","YEAR 9 PREVIEW · 2027",`<p style="font-size:13px;line-height:1.7;margin:0">
@@ -1309,27 +1489,34 @@ function rArcs(el){
       <div class="kv"><span class="k">2028 · Year 1</span><span class="v teal">New cycle / seed</span></div>`)}
   </div>
   <div style="margin-top:14px">${card("ar-mile","MILESTONES TRACKED",`
-    <div class="kv"><span class="k">📖 Publishing — Bermuda Project</span><span class="v gold">61%</span></div>
-    <div class="kv"><span class="k">🏛 House of Burton — to delivery</span><span class="v">40%</span></div>
+    <div class="kv"><span class="k">📖 Publishing — Bermuda Project</span><span class="v gold">${lucky(milBermudaPct,'%')}</span></div>
+    <div class="kv"><span class="k">🏛 House of Burton — to delivery</span><span class="v">${DEMO?'40%':'<span class="muted">✎ —</span>'}</span></div>
     <div class="kv"><span class="k">🏠 Property / marriage</span><span class="v muted">Operator defines</span></div>`)}</div>`;
-  document.getElementById("sub-arcs").textContent="The long view";
+  setSub("arcs",DEMO?"demo":"computed",DEMO?"the long view":"Bermuda % live · rest ✎ manual");
 }
 
 /* ---- PANEL 11 NODES (read-only war room mirror) ---- */
 function rNodes(el){
   const n=D.nodes;
+  const live=LIVE_PANELS.includes("nodes");
+  if(!DEMO && !live){
+    el.innerHTML=`<div class="card">${emptyBox("War Room not reachable — check the Persons DB is shared with the token")}
+      <div style="margin-top:12px"><button class="btn" onclick="window.open('https://metis-warroom.netlify.app','_blank')">→ OPEN WAR ROOM</button></div></div>`;
+    setSub("nodes","empty","Persons DB unreachable");
+    return;
+  }
   el.innerHTML=`
   <div class="grid g4">
     ${card("nd-t1","TIER 1",`<div class="stat"><span class="big">${lucky(n.t1)}</span><span class="small">inner circle</span></div>`)}
     ${card("nd-t2","TIER 2",`<div class="stat"><span class="big">${lucky(n.t2)}</span><span class="small">active</span></div>`)}
     ${card("nd-t3","TIER 3",`<div class="stat"><span class="big">${lucky(n.t3)}</span><span class="small">peripheral</span></div>`)}
-    ${card("nd-sit","SITUATIONS",`<div class="stat"><span class="big fire">${lucky(n.situations)}</span><span class="small">open</span></div>`)}
+    ${card("nd-sit","SITUATIONS",`<div class="stat"><span class="big fire">${n.situations==null?'—':lucky(n.situations)}</span><span class="small">open</span></div>`)}
   </div>
   <div style="margin-top:14px">${card("nd-next","NEXT ACTION DUE",`
-    <div style="font-size:15px;font-weight:600">${n.nextAction}</div>
+    <div style="font-size:15px;font-weight:600">${n.nextAction||(DEMO?'':'<span class="muted">○ no action set</span>')}</div>
     <div style="margin-top:14px"><button class="btn" onclick="window.open('https://metis-warroom.netlify.app','_blank')">→ OPEN WAR ROOM</button></div>
     <div class="muted" style="font-size:11px;margin-top:12px">🔒 Code names only · read-only mirror · no editing from Mission Control</div>`)}</div>`;
-  document.getElementById("sub-nodes").textContent="Read-only · code names only";
+  setSub("nodes",DEMO?"demo":"live",DEMO?"read-only · code names only":"Persons DB · code names only");
 }
 
 /* ---- PANEL 12 ANCHORS ---- */
@@ -1356,16 +1543,28 @@ function rAnchors(el){
       <td class="mono">${lucky(a.days)}d</td></tr>`).join("")}
     </tbody></table>`)}</div>
   <div class="muted" style="font-size:11px;margin-top:14px">Connect Google Calendar / Notion calendar to pull live events.</div>`;
-  document.getElementById("sub-anchors").textContent="Calendar intelligence";
+  setSub("anchors","computed","date math");
 }
 
 /* ---- PANEL 13 SYSTEM ---- */
 function rSystem(el){
   const s=D.system;
+  let syncRows;
+  if(DEMO){
+    syncRows=s.sync.map(x=>({db:x.db,ts:x.ts,dot:x.ok?'var(--teal)':'var(--crimson)'}));
+  }else{
+    const SRC=[["daily","Daily Logs"],["bermuda","Bermuda Tracker"],["protocols","Protocols"],
+      ["habits","Habit Tracker"],["nodes","War Room (RO)"],["health","Health Log"],["finance","Finance Log"]];
+    syncRows=SRC.map(([k,lab])=>{
+      if(LIVE_PANELS.includes(k)) return {db:lab,ts:"synced",dot:"var(--teal)"};
+      if(k==="health"||k==="finance") return {db:lab,ts:"empty by design",dot:"var(--gold)"};
+      return {db:lab,ts:"no data",dot:"var(--crimson)"};
+    });
+  }
   el.innerHTML=`
   <div class="grid g2">
     ${card("sy-sync","DATABASE SYNC",`
-      ${s.sync.map(x=>`<div class="kv"><span class="k"><span style="color:${x.ok?'var(--teal)':'var(--crimson)'}">●</span> ${x.db}</span>
+      ${syncRows.map(x=>`<div class="kv"><span class="k"><span style="color:${x.dot}">●</span> ${x.db}</span>
         <span class="v muted">${x.ts}</span></div>`).join("")}`)}
     ${card("sy-stat","SYSTEM STATUS",`
       <div class="kv"><span class="k">Mode</span><span class="v ${DEMO?'gold':'teal'}">${DEMO?'DEMO':'LIVE'}</span></div>
@@ -1374,9 +1573,9 @@ function rSystem(el){
       <div class="kv"><span class="k">Quiet hours</span><span class="v muted">23:00–08:00</span></div>`)}
   </div>
   <div style="margin-top:14px">${card("sy-sess","SESSION LOG · LAST ORION X",`
-    ${s.sessions.map(x=>`<div class="kv"><span class="k mono" style="font-size:12px">${x}</span></div>`).join("")}`)}</div>
+    ${(s.sessions&&s.sessions.length)?s.sessions.map(x=>`<div class="kv"><span class="k mono" style="font-size:12px">${x}</span></div>`).join(""):emptyBox("no session log yet — written by Orion at end of session")}`)}</div>
   <div style="margin-top:14px"><button class="btn go" onclick="openCfg()">⚙ OPEN CONFIG</button></div>`;
-  document.getElementById("sub-system").textContent="Instrument panel";
+  setSub("system",DEMO?"demo":"live","instrument panel");
 }
 
 /* ====================================================================
