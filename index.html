@@ -775,7 +775,8 @@ const DB = {
   health:      normId(CFG.health)  || "48c73d72-3016-46f5-8ee1-6535c218d907",
   finance:     normId(CFG.fin)     || "480495a9-e94e-4c9f-99a0-d2bc8daeba91",
   protocols:   normId(CFG.proto)   || "e380cd6a-c90e-49de-a439-26b05d428880",
-  bermuda:     normId(CFG.bermuda_db)   || "32b1c1ef-7923-81dd-874a-d45729104a69",
+  bermuda:     normId(CFG.bermuda_db)   || "2031c1ef-7923-8105-97cf-edcedb200853", // CHAPTER db inside Creative Writing Space → CHAPTERS
+  projects:    normId(CFG.projects_db)  || "b30c6035-473f-41e0-a46a-8c88e2160e9f",    // 🏛️ House of Burton → 02 Projects → Projects Database
   summitHabit: normId(CFG.summit_habit) || "ec05c58d-2cf1-42e1-b45b-abc511191a53",
 };
 async function nfetch(endpoint, body){
@@ -857,17 +858,51 @@ async function hydrate(base){
     LIVE_PANELS.push("protocols");
   })().catch(e=>LIVE_ERRORS.push("Protocols: "+e.message)));
 
-  // ---- BERMUDA (04) — word-count tracker
+  // ---- BERMUDA (04) — chapter draft tracker (Creative Writing Space)
   tasks.push((async()=>{
-    const r=await queryDB(DB.bermuda,{page_size:100});
+    const r=await queryDB(DB.bermuda,{page_size:100,sorts:[{property:"Chapter Number",direction:"ascending"}]});
     if(!r.results?.length) return;
     const rows=r.results.map(pg=>{const p=pg.properties;
-      return {date:P.title(p,"Date"),words:P.num(p,"Words Written")||0,cum:P.num(p,"Cumulative Total")||0};});
-    const cum=Math.max(0,...rows.map(x=>x.cum||0));
-    const recent=rows.filter(x=>x.words>0).slice(0,6).reverse().map(x=>({date:x.date,words:x.words}));
-    base.bermuda={...base.bermuda, current:cum||base.bermuda.current, recent:recent.length?recent:base.bermuda.recent};
+      return {num:P.num(p,"Chapter Number"),title:P.title(p,"Title")||"—",draft:P.sel(p,"Draft Status")||"",arc:P.sel(p,"Arc")||""};})
+      .filter(x=>x.num!=null);
+    if(!rows.length) return;
+    const isFinal=d=>/final/i.test(d), isThird=d=>/third/i.test(d), isSecond=d=>/second/i.test(d), isFirst=d=>/first/i.test(d);
+    const draft={final:rows.filter(x=>isFinal(x.draft)).length,
+                 third:rows.filter(x=>isThird(x.draft)).length,
+                 second:rows.filter(x=>isSecond(x.draft)).length,
+                 first:rows.filter(x=>isFirst(x.draft)).length};
+    const total=rows.length, done=draft.final;
+    const phase = done>=total ? "All chapters at final draft"
+      : (draft.third+draft.final>=total) ? "Polishing — third draft across the book"
+      : `Editing — ${draft.final} final · ${draft.third} third · ${draft.second} second · ${draft.first} first`;
+    base.bermuda={...base.bermuda, chaptersTotal:total, chaptersDone:done, draft,
+      chapters:rows.map(x=>({num:x.num,title:x.title,draft:x.draft,arc:x.arc})), phase};
     LIVE_PANELS.push("bermuda");
   })().catch(e=>LIVE_ERRORS.push("Bermuda: "+e.message)));
+
+  // ---- HOUSE OF BURTON (03) — 🏛️ HoB hub → Projects Database (one row per book)
+  tasks.push((async()=>{
+    const r=await queryDB(DB.projects,{page_size:100});
+    if(!r.results?.length) return;
+    const PIPE=["Intake","Audio Pass","AI Edit","Direction","Production","Launch"];
+    const rows=r.results.map(pg=>{const p=pg.properties;
+      return {name:P.title(p,"Name")||"—",author:P.text(p,"Author"),status:P.sel(p,"Status")||"",
+        tier:P.sel(p,"Tier"),fee:P.num(p,"Total Fee")||0,pay:P.sel(p,"Payment Status")||"",
+        target:P.date(p,"Target Launch"),intake:P.date(p,"Intake Date")};})
+      .filter(x=>x.status!=="Archived" && x.status!=="Inquiry");
+    if(!rows.length) return;
+    const active=rows.filter(x=>PIPE.includes(x.status)||x.status==="Launched");
+    const contracted=rows.reduce((a,b)=>a+(b.fee||0),0);
+    const collected=rows.reduce((a,b)=>{const f=b.fee||0;
+      return a + (/paid in full/i.test(b.pay)?f : (/second half|first half received/i.test(b.pay)?f/2 : 0));},0);
+    const lead=[...active].sort((a,b)=>(a.target||"9999").localeCompare(b.target||"9999"))[0]||rows[0];
+    base.hob={...base.hob, empty:false, activeClients:active.length, contracted, collected,
+      pipeline:{client:lead.name,phase:lead.status,tier:lead.tier||"—",pay:lead.pay||"—",
+        target:lead.target||"", next:lead.status, status:lead.status, daysToMilestone:null},
+      projects:rows.map(x=>({title:x.name,status:x.status||"Active",tier:x.tier||"",pay:x.pay||"",target:x.target||""})),
+      nextAction:`Advance ${lead.name} — ${lead.status}`};
+    LIVE_PANELS.push("house");
+  })().catch(e=>LIVE_ERRORS.push("House of Burton: "+e.message)));
 
   // ---- HEALTH (09) — latest value per metric
   tasks.push((async()=>{
@@ -988,11 +1023,12 @@ function stripDemoToHonest(base){
   base.dailyLog=null;
   base.health={metrics:[],injuries:[],logged:"—"};                 // Health DB empty by design
   base.finance={empty:true,weeklyNet:null,cash:null,hobYtd:null,hobMonth:null,hobWeek:null,burn:null,savingsRate:null};
-  base.astro={sun:"",moon:"",rising:"",weekly:""};                 // readings are manual Orion drops
-  base.hob={empty:true,activeClients:null,ytd:null,month:null,
-    pipeline:{client:"",phase:"",next:"",daysToMilestone:null},projects:[],
+  // astro readings are evergreen chart guidance (real placements) — keep them, not fabricated metrics
+  base.hob={empty:true,activeClients:null,contracted:null,collected:null,
+    pipeline:{client:"",phase:"",tier:"",pay:"",target:"",status:"",next:"",daysToMilestone:null},projects:[],
     manifesto:base.hob.manifesto,nextAction:""};
-  base.bermuda={...base.bermuda,current:0,recent:[],chaptersDone:null,phase:"",next:""}; // target/total kept (structural)
+  base.bermuda={...base.bermuda,current:0,recent:[],chaptersDone:null,chaptersTotal:null,
+    draft:null,chapters:[],phase:"",next:""};                      // chapter/draft shape — no word source in Notion
   base.protocols=[];
   base.habits=[];
   base.freezes=null;
@@ -1206,6 +1242,35 @@ function rHouse(el){
     setSub("house","empty","no live HoB source");
     return;
   }
+  if(!DEMO){
+    const money=n=>n==null?'—':'$'+Number(n).toLocaleString();
+    el.innerHTML=`
+    <div class="grid g3">
+      ${card("hb-c","ACTIVE PROJECTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">${h.pipeline.client||'House of Burton'}</span></div>`)}
+      ${card("hb-ytd","CONTRACTED",`<div class="stat"><span class="big gold">${money(h.contracted)}</span><span class="small">total fees · non-archived</span></div>`)}
+      ${card("hb-mo","COLLECTED",`<div class="stat"><span class="big">${money(h.collected)}</span><span class="small">payments received</span></div>`)}
+    </div>
+    <div style="margin-top:14px">${card("hb-pipe","LEAD PROJECT",`
+      <div class="kv"><span class="k">Project</span><span class="v">${h.pipeline.client}</span></div>
+      <div class="kv"><span class="k">Stage</span><span class="v gold">${h.pipeline.status||'—'}</span></div>
+      <div class="kv"><span class="k">Tier</span><span class="v">${h.pipeline.tier||'—'}</span></div>
+      <div class="kv"><span class="k">Payment</span><span class="v">${h.pipeline.pay||'—'}</span></div>
+      ${h.pipeline.target?`<div class="kv"><span class="k">Target launch</span><span class="v mono">${h.pipeline.target}</span></div>`:''}`)}
+    </div>
+    <div style="margin-top:14px">${card("hb-proj","AUTHOR PROJECTS",`
+      <table class="tbl"><thead><tr><th>Project</th><th>Stage</th><th>Tier</th><th>Launch</th></tr></thead><tbody>
+      ${h.projects.map(p=>`<tr><td>${p.title}</td><td><span class="pill ${(p.status||'active').toLowerCase().replace(/[^a-z]/g,'')}">${p.status||'Active'}</span></td>
+        <td class="mono muted">${p.tier||'—'}</td><td class="mono muted">${p.target||'—'}</td></tr>`).join("")}
+      </tbody></table>`)}
+    </div>
+    <div class="grid g2" style="margin-top:14px">
+      ${card("hb-man","MANIFESTO · DAILY",`<p style="font-size:14px;font-style:italic;line-height:1.7;margin:0">"${h.manifesto}"</p>`)}
+      ${card("hb-next","BUSINESS NEXT ACTION",`<p style="font-size:14px;line-height:1.7;margin:0">${h.nextAction||'<span class="muted">○ no next action set</span>'}</p>
+        <div class="muted" style="font-size:11px;margin-top:10px">🏛️ House of Burton · Projects Database</div>`)}
+    </div>`;
+    setSub("house","live","HoB Projects Database · one row per book");
+    return;
+  }
   el.innerHTML=`
   <div class="grid g3">
     ${card("hb-c","ACTIVE CLIENTS",`<div class="stat"><span class="big">${lucky(h.activeClients)}</span><span class="small">${h.pipeline.client}</span></div>`)}
@@ -1239,6 +1304,46 @@ function rBermuda(el){
   const b=D.bermuda;
   const deadline=CFG.deadline||ANCHORS_DEFAULT.bermuda;
   const daysLeft=daysUntil(deadline);
+  if(!DEMO){
+    const live=LIVE_PANELS.includes("bermuda");
+    const dr=b.draft||{first:0,second:0,third:0,final:0};
+    const total=b.chaptersTotal, done=b.chaptersDone;
+    const cpct=(live&&total)?Math.round((done/total)*100):0;
+    const dl=new Date(deadline);
+    const pillFor=d=>/final/i.test(d)?'<span class="pill complete">Final</span>'
+      :/third/i.test(d)?'<span class="pill active">Third</span>'
+      :/second/i.test(d)?'<span class="pill parked">Second</span>'
+      :/first/i.test(d)?'<span class="pill suspended">First</span>':'<span class="muted">—</span>';
+    el.innerHTML=`
+    <div class="grid g3">
+      ${card("bm-prog","DRAFT PROGRESS",
+        live?`<div class="stat"><span class="big gold">${lucky(done)}<span style="font-size:16px;color:var(--muted)"> / ${total}</span></span>
+          <span class="small">chapters at final draft</span></div>
+          <div class="pbar" style="margin-top:12px"><i style="width:${cpct}%"></i></div>
+          <div class="muted mono" style="font-size:11px;margin-top:6px">${lucky(cpct,'%')} at final draft</div>`
+        : emptyBox("chapter tracker not reachable — confirm bermuda_project_chapters is shared with the token"))}
+      ${card("bm-dead","DEADLINE",`<div class="stat"><span class="big">${lucky(daysLeft)}</span><span class="small">days left · ${fmtDate(dl).mon} ${dl.getDate()} ${dl.getFullYear()}</span></div>
+        <div class="muted mono" style="font-size:11px;margin-top:10px">sobriety commitment holds until ship</div>`)}
+      ${card("bm-draft","DRAFT STAGES",
+        live?`<div class="kv"><span class="k">Final draft</span><span class="v teal">${lucky(dr.final)}</span></div>
+          <div class="kv"><span class="k">Third draft</span><span class="v gold">${lucky(dr.third)}</span></div>
+          <div class="kv"><span class="k">Second draft</span><span class="v">${lucky(dr.second)}</span></div>
+          <div class="kv"><span class="k">First draft</span><span class="v muted">${lucky(dr.first)}</span></div>`
+        : emptyBox("no draft data"))}
+    </div>
+    <div style="margin-top:14px">${card("bm-next","TODAY'S TARGET",`
+      <div style="font-size:17px;font-weight:600;line-height:1.4">${b.next||D.todayPriority||'<span class="muted">○ no target set — pull from today’s log</span>'}</div>
+      ${b.phase?`<div class="muted" style="font-size:12px;margin-top:8px">${b.phase}</div>`:''}`)}
+    </div>
+    ${(live&&b.chapters&&b.chapters.length)?`<div style="margin-top:14px">${card("bm-map","CHAPTER MAP",`
+      <table class="tbl"><thead><tr><th>#</th><th>Chapter</th><th>Draft</th></tr></thead><tbody>
+      ${b.chapters.map(c=>`<tr><td class="mono muted">${c.num}</td><td>${c.title}</td><td>${pillFor(c.draft)}</td></tr>`).join("")}
+      </tbody></table>`)}</div>`:''}
+    <div class="muted" style="font-size:11px;margin-top:14px">
+      Chapter drafts from the Creative Writing Space · Notion tracks drafts, not words — no word-count source wired.</div>`;
+    setSub("bermuda", live?"live":"computed", live?"chapter draft tracker":"countdown computed · chapters unreachable");
+    return;
+  }
   const pct=Math.min(100,Math.round((b.current/b.target)*100));
   const remaining=Math.max(0,b.target-b.current);
   const pace=daysLeft>0?Math.ceil(remaining/daysLeft):remaining;
